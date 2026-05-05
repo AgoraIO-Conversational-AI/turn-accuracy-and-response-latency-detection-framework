@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Turn Accuracy and Response Latency Detection Framework</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Agent Turn Accuracy and Response Latency Detection Framework</h1>
+    <div id="connection-status" class="status-dot disconnected" title="WebSocket disconnected"></div>
+  </header>
+
+  <section id="setup-info" class="info-banner">
+    <strong>Setup:</strong>
+    System Output &rarr; Multi-Output Device (BlackHole 16ch + Speakers).
+    Browser Mic &rarr; BlackHole 2ch.
+    Open your ConvAI agent in another tab, then press Play on a turn below.
+  </section>
+
+  <section id="controls">
+    <div class="control-row">
+      <label for="source-select">Source:</label>
+      <select id="source-select"></select>
+
+      <label for="speaker-select">Speaker:</label>
+      <select id="speaker-select">
+        <option value="">Both</option>
+        <option value="0" selected>Speaker 0</option>
+        <option value="1">Speaker 1</option>
+      </select>
+
+      <button id="btn-run-all" class="btn primary">Run All</button>
+      <button id="btn-stop" class="btn danger" disabled>Stop</button>
+      <button id="btn-reset" class="btn">Reset</button>
+    </div>
+
+    <details id="device-config">
+      <summary>Audio Devices</summary>
+      <div id="device-list"></div>
+    </details>
+  </section>
+
+  <section id="summary">
+    <h2>Summary</h2>
+    <div id="summary-stats" class="stats-grid">
+      <div class="stat">
+        <span class="stat-label">Turns</span>
+        <span id="stat-total" class="stat-value">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Completed</span>
+        <span id="stat-completed" class="stat-value">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Barge-ins</span>
+        <span id="stat-bargein" class="stat-value">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">No Response</span>
+        <span id="stat-noresp" class="stat-value">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Avg TTFA</span>
+        <span id="stat-avg" class="stat-value">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Median TTFA</span>
+        <span id="stat-median" class="stat-value">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">P95 TTFA</span>
+        <span id="stat-p95" class="stat-value">—</span>
+      </div>
+      <div class="stat stat-control">
+        <button id="btn-play-pause" class="play-pause-btn" onclick="togglePlayPause()">
+          <svg id="icon-play" viewBox="0 0 24 24" width="28" height="28"><polygon points="6,3 20,12 6,21" fill="currentColor"/></svg>
+          <svg id="icon-pause" viewBox="0 0 24 24" width="28" height="28" class="hidden"><rect x="5" y="3" width="4" height="18" fill="currentColor"/><rect x="15" y="3" width="4" height="18" fill="currentColor"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section id="turn-table-section">
+    <h2>Turns</h2>
+    <table id="turn-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Spk</th>
+          <th>Text</th>
+          <th>Duration</th>
+          <th>Hesitations</th>
+          <th>TTFA</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="turn-table-body"></tbody>
+    </table>
+  </section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
