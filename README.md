@@ -4,7 +4,7 @@ Measure time-to-first-audio (TTFA), barge-in behavior, and no-response rates for
 
 ---
 
-<video src="docs/demo.mp4" controls width="100%"></video>
+[![Demo Video](https://img.shields.io/badge/▶_Demo_Video-Google_Drive-4285F4?style=for-the-badge&logo=googledrive&logoColor=white)](https://drive.google.com/file/d/1GK6eZIvzP2JgYRWWjNdNZyQpZlsGuEnh/view?usp=sharing)
 
 ---
 
