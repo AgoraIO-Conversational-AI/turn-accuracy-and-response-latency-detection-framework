@@ -4,7 +4,8 @@
 
 - Stored in `.env` at project root (gitignored)
 - Never committed — `.env.example` provides the template
-- Keys are loaded lazily by `load_env()` only when running diarization comparison
+- `TTS_KEY` is loaded by `generate_tts.py` only when generating TTS turns
+- Diarization keys are loaded lazily by `load_env()` only when running diarization comparison
 - The harness server does not require any API keys
 
 ## Network Exposure

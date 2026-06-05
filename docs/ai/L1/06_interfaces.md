@@ -71,8 +71,15 @@ class TurnResult:
       "duration_ms": 3300,
       "text": "...",
       "hesitations": [{"at_ms": 2000, "duration_ms": 800}],
-      "max_hesitation_ms": 800
+      "max_hesitation_ms": 800,
+      "category": "pause",
+      "expected_complete": false,
+      "target_gap_ms": 800,
+      "voice_id": "XnKbmWxx8uWjruHkpXmf"
     }
   ]
 }
+```
+
+TTS-specific fields (`category`, `expected_complete`, `target_gap_ms`, `voice_id`) are present in TTS turn indexes. Segmented audio indexes omit them — the harness handles both formats.
 ```

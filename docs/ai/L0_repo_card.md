@@ -18,6 +18,7 @@ Python 3.12+ | FastAPI + WebSocket | sounddevice | RMS amplitude detection | Bla
 
 - `python -m src.harness` — start measurement server on :8000
 - `python -m src.harness.segment <audio>` — segment audio into turns
+- `python -m src.harness.generate_tts` — generate synthetic TTS turns via ElevenLabs
 - `python -m src.diarization.compare_providers --audio <file>` — compare diarization providers
 
 ## Deeper Docs

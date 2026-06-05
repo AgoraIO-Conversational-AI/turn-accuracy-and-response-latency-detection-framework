@@ -24,12 +24,12 @@
 
 ## Data Flow
 
-1. **TurnManager** loads turns from `out/turns_index.json`
+1. **TurnManager** loads turns from the active source's `turns_index.json`
 2. For each turn, **AudioEngine** plays the WAV to BlackHole 2ch (browser mic) and speakers
 3. Simultaneously, AudioEngine captures from BlackHole 16ch (system audio containing agent response)
 4. Captured audio is resampled to 16kHz and fed to **VadEngine**
 5. VadEngine detects speech start/end events
-6. TurnManager computes TTFA (time from playback end to first speech detection)
+6. TurnManager computes TTFA using the turn's expected `duration_ms` as the reference point (not wall-clock playback completion, which has ~200-400ms OS buffer overhead)
 7. Results are broadcast to the web UI via WebSocket
 
 ## Threading Model

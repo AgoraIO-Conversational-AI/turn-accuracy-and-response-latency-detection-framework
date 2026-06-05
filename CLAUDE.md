@@ -9,6 +9,7 @@ Turn accuracy and response latency detection framework for Conversational AI age
 ```bash
 python -m src.harness          # start FastAPI server on :8000
 python -m src.harness.segment fixtures/sovereign_place_5.m4a  # segment audio
+python -m src.harness.generate_tts  # generate TTS turn-accuracy test audio
 python -m src.diarization.compare_providers --audio <file> --split
 ```
 

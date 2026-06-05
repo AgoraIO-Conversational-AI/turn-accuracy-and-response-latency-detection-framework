@@ -30,6 +30,16 @@ SOURCES = {
         "index": OUT_DIR / "Sovereign_Place_10" / "turns_index.json",
         "turns_dir": OUT_DIR / "Sovereign_Place_10" / "turns",
     },
+    "tts_turns": {
+        "label": "TTS Turn Accuracy",
+        "index": OUT_DIR / "TTS_Turns" / "turns_index.json",
+        "turns_dir": OUT_DIR / "TTS_Turns" / "turns",
+    },
+    "tts_debug": {
+        "label": "TTS Debug (1,2,5,17,18)",
+        "index": OUT_DIR / "TTS_Turns" / "turns_index_debug.json",
+        "turns_dir": OUT_DIR / "TTS_Turns" / "turns",
+    },
 }
 
 
@@ -70,8 +80,8 @@ class TurnManager:
         audio_engine: AudioEngine,
         vad_engine: VadEngine,
         on_event: Callable | None = None,
-        response_silence_timeout: float = 3.0,
-        barge_in_silence_timeout: float = 5.0,
+        response_silence_timeout: float = 1.5,
+        barge_in_silence_timeout: float = 3.0,
         max_wait_for_response: float = 10.0,
         inter_turn_delay: float = 0.5,
     ):
@@ -130,15 +140,23 @@ class TurnManager:
         src = SOURCES[self._current_source]
         return src["turns_dir"] / f"speaker{turn['speaker']}" / f"turn_{turn['turn']:03d}.wav"
 
+    def _find_turn(self, turn_id: int) -> dict:
+        """Find a turn by its ID (not list index)."""
+        for t in self._turns_data:
+            if t["turn"] == turn_id:
+                return t
+        raise ValueError(f"Turn {turn_id} not found in current source")
+
     async def run_single_turn(self, turn_index: int) -> TurnResult:
         """Play a single turn and measure response.
 
+        turn_index is the turn ID (from turns_index.json), not a list position.
         VAD runs continuously from playback start. TTFA is measured from
         playback end — if the agent responds before the turn finishes,
         TTFA will be negative.
         """
         self._stop_requested = False
-        turn = self._turns_data[turn_index]
+        turn = self._find_turn(turn_index)
         result = TurnResult(
             turn=turn["turn"],
             speaker=turn["speaker"],
@@ -200,11 +218,14 @@ class TurnManager:
         playback_task = asyncio.create_task(do_playback())
 
         # track state across the whole turn
-        # audio_elapsed_ms tracks time in the audio domain (from VAD events)
-        first_speech_audio_ms = None  # audio-time of first agent speech
+        first_speech_audio_ms = None  # audio-time of first agent speech (from VAD)
         last_speech_time = None  # wall-clock for silence timeout tracking
-        playback_end = None
-        playback_end_audio_ms = None  # audio-time when playback ended
+        playback_end = None  # wall-clock when play_turn() returned
+
+        # TTFA reference: use expected duration from the index, not wall-clock.
+        # play_turn() returns ~400ms late due to OS audio buffer drain, but the
+        # audio content actually finishes at exactly duration_ms from start.
+        expected_end_ms = float(turn["duration_ms"])
 
         while True:
             if self._stop_requested:
@@ -213,19 +234,11 @@ class TurnManager:
             # check if playback finished BEFORE blocking on capture
             if playback_done.is_set() and playback_end is None:
                 playback_end = time.perf_counter()
-                playback_end_audio_ms = (playback_end - playback_start) * 1000
                 actual_play_dur = playback_end - playback_start
-                log.info(f"turn {turn['turn']}: playback ended, actual={actual_play_dur:.3f}s expected={turn_duration_s:.3f}s")
+                buffer_overhead_ms = (actual_play_dur * 1000) - expected_end_ms
+                log.info(f"turn {turn['turn']}: playback func returned, actual={actual_play_dur:.3f}s expected={turn_duration_s:.3f}s (buffer overhead={buffer_overhead_ms:.0f}ms)")
                 self.run.state = TurnState.WAITING_RESPONSE
                 self._emit("waiting_response", {"turn": turn["turn"]})
-
-                # if we already detected speech, recalculate TTFA with real playback end
-                if first_speech_audio_ms is not None:
-                    result.ttfa_ms = first_speech_audio_ms - playback_end_audio_ms
-                    log.info(f"turn {turn['turn']}: recalculated TTFA={result.ttfa_ms:.0f}ms")
-                    if result.ttfa_ms < 0:
-                        result.barge_in = True
-                        result.status = "barge_in"
 
             # drain available capture chunks (up to 50 ≈ 1s of audio) to stay real-time
             chunks_processed = 0
@@ -241,17 +254,19 @@ class TurnManager:
 
                 for ev in events:
                     if ev["type"] == "speech_start" and first_speech_audio_ms is None:
-                        # use audio-domain time from detector
                         first_speech_audio_ms = ev["time_s"] * 1000
-                        log.info(f"turn {turn['turn']}: speech_start at audio_ms={first_speech_audio_ms:.0f}ms, playback_end={'set' if playback_end else 'not set'}")
+                        log.info(f"turn {turn['turn']}: speech_start at audio_ms={first_speech_audio_ms:.0f}ms, playback_done={'yes' if playback_done.is_set() else 'no'}")
 
-                        if playback_end_audio_ms is not None:
-                            ttfa = first_speech_audio_ms - playback_end_audio_ms
-                        else:
-                            # agent responded before turn finished — negative TTFA = barge-in
-                            ttfa = first_speech_audio_ms - turn["duration_ms"]
+                        # TTFA = agent speech time - turn audio end time
+                        # Both in the same audio-domain clock (capture stream time)
+                        ttfa = first_speech_audio_ms - expected_end_ms
+                        log.info(f"turn {turn['turn']}: TTFA = {first_speech_audio_ms:.0f}ms - {expected_end_ms:.0f}ms = {ttfa:.0f}ms")
+
+                        # barge-in: agent spoke before turn audio finished
+                        if ttfa < 0:
                             result.barge_in = True
                             result.barge_in_at_ms = first_speech_audio_ms
+                            log.info(f"turn {turn['turn']}: barge-in (agent spoke {-ttfa:.0f}ms before turn ended)")
 
                         # also check if barge-in landed in a hesitation gap
                         if not result.barge_in:
@@ -259,6 +274,7 @@ class TurnManager:
                                 if gap_start <= first_speech_audio_ms <= gap_end:
                                     result.barge_in = True
                                     result.barge_in_at_ms = first_speech_audio_ms
+                                    log.info(f"turn {turn['turn']}: barge-in in hesitation gap [{gap_start}-{gap_end}ms]")
                                     break
 
                         result.ttfa_ms = ttfa
@@ -278,24 +294,26 @@ class TurnManager:
                     last_speech_time = time.perf_counter()
 
             now = time.perf_counter()
+            elapsed_s = now - playback_start
+            past_expected_end = elapsed_s > turn_duration_s
 
-            # timeout: only start counting after playback ends
-            if playback_end is not None and first_speech_audio_ms is None:
-                if now - playback_end > self.max_wait_for_response:
+            # timeout: no response after expected turn end + max_wait
+            if past_expected_end and first_speech_audio_ms is None:
+                if elapsed_s - turn_duration_s > self.max_wait_for_response:
                     log.info(f"turn {turn['turn']}: no response after {self.max_wait_for_response}s")
                     result.status = "no_response"
                     break
 
             # end condition: agent responded then went silent
-            # after barge-in, wait longer (from playback end) to catch second response
+            # don't gate on playback_end — use elapsed time past expected duration
             if first_speech_audio_ms is not None and last_speech_time is not None:
-                if not self.vad.is_speech_active and playback_end is not None:
+                if not self.vad.is_speech_active and past_expected_end:
                     silence_dur = now - last_speech_time
                     timeout = self.barge_in_silence_timeout if result.barge_in else self.response_silence_timeout
-                    # for barge-in, also ensure we've waited at least timeout after playback ended
+                    # for barge-in, also ensure we've waited at least timeout after expected end
                     if result.barge_in:
-                        since_playback_end = now - playback_end
-                        if since_playback_end < timeout:
+                        since_expected_end = elapsed_s - turn_duration_s
+                        if since_expected_end < timeout:
                             await asyncio.sleep(0.01)
                             continue
                     if silence_dur >= timeout:
@@ -311,7 +329,16 @@ class TurnManager:
 
             await asyncio.sleep(0.01)
 
-        await playback_task  # ensure playback is done
+        # ensure playback task completes (with timeout to avoid hang)
+        try:
+            await asyncio.wait_for(playback_task, timeout=2.0)
+        except asyncio.TimeoutError:
+            log.warning(f"turn {turn['turn']}: playback task hung, forcing stop")
+            self.audio.stop_playback()
+            try:
+                await asyncio.wait_for(playback_task, timeout=1.0)
+            except asyncio.TimeoutError:
+                pass
         self.audio.stop_capture()
         self.run.state = TurnState.IDLE
 

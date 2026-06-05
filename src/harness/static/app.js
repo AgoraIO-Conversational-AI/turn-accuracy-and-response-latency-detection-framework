@@ -92,6 +92,7 @@ function handleMessage(msg) {
       if (msg.summary) {
         renderSummary(msg.summary);
       }
+      updateSummaryRow();
       clearHighlight();
       break;
 
@@ -102,6 +103,7 @@ function handleMessage(msg) {
       updateControls();
       renderSummary(msg);
       renderCurrentTurnIdle();
+      updateSummaryRow();
       break;
 
     case "reset":
@@ -113,6 +115,7 @@ function handleMessage(msg) {
       renderSummary({});
       renderCurrentTurnIdle();
       resetTableStatuses();
+      updateSummaryRow();
       break;
 
     case "stopped":
@@ -187,23 +190,45 @@ function renderTurnTable() {
   let html = "";
 
   for (const turn of state.turns) {
-    const hesCount = turn.hesitations ? turn.hesitations.length : 0;
     const maxHes = turn.max_hesitation_ms || 0;
-    const hesText = hesCount > 0 ? `${hesCount} (max ${maxHes}ms)` : "—";
+    const silenceText = maxHes > 0 ? `${maxHes}ms` : "—";
+
+    // type column: category badge only
+    const cat = turn.category || "";
+    let typeHtml = "";
+    if (cat === "normal") {
+      typeHtml = `<span class="category-badge cat-normal">normal</span>`;
+    } else if (cat === "hesitation") {
+      typeHtml = `<span class="category-badge cat-hesitation">hesitation</span>`;
+    } else if (cat === "pause") {
+      typeHtml = `<span class="category-badge cat-pause">pause</span>`;
+    } else if (cat === "ambiguous") {
+      typeHtml = `<span class="category-badge cat-ambiguous">ambiguous</span>`;
+    }
 
     html += `
       <tr id="turn-row-${turn.turn}" data-turn="${turn.turn}">
         <td>${turn.turn}</td>
         <td>S${turn.speaker}</td>
+        <td class="type-cell">${typeHtml}</td>
         <td class="text-cell" title="${escapeHtml(turn.text)}">${escapeHtml(turn.text)}</td>
         <td>${(turn.duration_ms / 1000).toFixed(1)}s</td>
-        <td>${hesText}</td>
+        <td>${silenceText}</td>
         <td class="ttfa-cell" id="ttfa-${turn.turn}">—</td>
         <td id="status-${turn.turn}"><span class="status-badge status-pending">pending</span></td>
         <td><button class="btn-play-single" onclick="playSingle(${turn.turn})">Play</button></td>
       </tr>
     `;
   }
+
+  // summary footer row
+  html += `
+    <tr id="turn-row-summary" class="summary-row">
+      <td colspan="6" style="text-align:right;font-weight:600;color:#a0a0c0;">Average</td>
+      <td class="ttfa-cell" id="ttfa-summary">—</td>
+      <td colspan="2"></td>
+    </tr>
+  `;
 
   tbody.innerHTML = html;
 }
@@ -225,10 +250,12 @@ function setTurnTtfa(turnIdx, ttfa) {
   if (!el) return;
 
   const ms = Math.round(ttfa);
-  let cls;
   if (ms < 0) {
-    cls = "ttfa-negative";  // agent interrupted before turn ended
-  } else if (ms > 1500) {
+    el.innerHTML = `<span class="ttfa-negative">barge-in</span>`;
+    return;
+  }
+  let cls;
+  if (ms > 1500) {
     cls = "ttfa-red";
   } else if (ms > 500) {
     cls = "ttfa-yellow";
@@ -263,6 +290,25 @@ function resetTableStatuses() {
     const ttfaEl = document.getElementById(`ttfa-${turn.turn}`);
     if (ttfaEl) ttfaEl.textContent = "—";
   }
+}
+
+function updateSummaryRow() {
+  const el = document.getElementById("ttfa-summary");
+  if (!el) return;
+  const ttfas = Object.values(state.results)
+    .filter(r => r.ttfa_ms != null && r.ttfa_ms >= 0)
+    .map(r => r.ttfa_ms);
+  if (ttfas.length === 0) {
+    el.innerHTML = "—";
+    return;
+  }
+  const avg = Math.round(ttfas.reduce((a, b) => a + b, 0) / ttfas.length);
+  let cls;
+  if (avg < 0) cls = "ttfa-negative";
+  else if (avg > 1500) cls = "ttfa-red";
+  else if (avg > 500) cls = "ttfa-yellow";
+  else cls = "ttfa-green";
+  el.innerHTML = `<span class="${cls}">${avg}ms</span>`;
 }
 
 function renderCurrentTurn(msg) {}

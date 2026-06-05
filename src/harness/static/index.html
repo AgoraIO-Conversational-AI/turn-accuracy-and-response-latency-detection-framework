@@ -26,9 +26,12 @@
 
       <label for="speaker-select">Speaker:</label>
       <select id="speaker-select">
-        <option value="">Both</option>
-        <option value="0" selected>Speaker 0</option>
+        <option value="" selected>All</option>
+        <option value="0">Speaker 0</option>
         <option value="1">Speaker 1</option>
+        <option value="2">Speaker 2</option>
+        <option value="3">Speaker 3</option>
+        <option value="4">Speaker 4</option>
       </select>
 
       <button id="btn-run-all" class="btn primary">Run All</button>
@@ -87,14 +90,15 @@
     <table id="turn-table">
       <thead>
         <tr>
-          <th>#</th>
-          <th>Spk</th>
+          <th style="width:36px">#</th>
+          <th style="width:36px">Spk</th>
+          <th style="width:110px">Type</th>
           <th>Text</th>
-          <th>Duration</th>
-          <th>Hesitations</th>
-          <th>TTFA</th>
-          <th>Status</th>
-          <th></th>
+          <th style="width:70px">Duration</th>
+          <th style="width:80px">Silence</th>
+          <th style="width:70px">TTFA</th>
+          <th style="width:80px">Status</th>
+          <th style="width:50px"></th>
         </tr>
       </thead>
       <tbody id="turn-table-body"></tbody>

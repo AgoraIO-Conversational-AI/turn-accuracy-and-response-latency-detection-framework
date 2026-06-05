@@ -10,6 +10,7 @@
 | `turn_manager.py` | Turn sequencing, TTFA measurement, barge-in | `TurnManager`, `TurnResult`, `TurnState` |
 | `audio_prep.py` | Extract per-turn WAVs from source using ffmpeg | `extract_turns()` |
 | `segment.py` | Volume-based turn segmentation | `segment_audio()` |
+| `generate_tts.py` | Synthetic TTS turn generation via ElevenLabs | `main()` |
 | `__main__.py` | Module entry point | calls `server.main()` |
 | `static/` | Web UI (index.html, app.js, style.css) | — |
 
@@ -32,4 +33,6 @@
 |------|---------|
 | `out/turns_index.json` | Turn timing and metadata |
 | `out/turns/speaker{0,1}/turn_NNN.wav` | Per-turn audio clips |
+| `out/TTS_Turns/turns_index.json` | TTS turn metadata with categories |
+| `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav` | Synthetic TTS turn audio |
 | `diarize_output/` | Diarization comparison results |

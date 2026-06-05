@@ -231,6 +231,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
+  table-layout: fixed;
 }
 
 thead th {
@@ -260,8 +261,16 @@ tbody tr.barge-in {
   background: rgba(255, 152, 0, 0.15);
 }
 
+.summary-row {
+  border-top: 2px solid #3a3a5e;
+  background: #1a1a2e;
+}
+
+.summary-row:hover {
+  background: #1a1a2e;
+}
+
 .text-cell {
-  max-width: 350px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -302,4 +311,30 @@ tbody tr.barge-in {
 .btn-play-single:hover {
   background: #3a3a5e;
   color: #e0e0e0;
+}
+
+/* Category badges */
+.type-cell {
+  white-space: nowrap;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.cat-normal { background: #2e7d32; color: #fff; }
+.cat-hesitation { background: #e65100; color: #fff; }
+.cat-pause { background: #6a1b9a; color: #fff; }
+.cat-ambiguous { background: #0277bd; color: #fff; }
+
+.gap-label {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.7rem;
+  color: #a0a0c0;
+  font-weight: 600;
 }

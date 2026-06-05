@@ -41,7 +41,24 @@ python -m src.diarization.compare_providers \
 
 Output: `diarize_output/raw_*.json`, `diarize_output/*_speaker*.wav`, `diarize_output/comparison.json`
 
-## Workflow 4: Add a New Audio Source
+## Workflow 4: Generate TTS Test Turns
+
+```bash
+# Generate all 20 turns across 5 speakers (requires TTS_KEY in .env)
+python -m src.harness.generate_tts
+
+# Skip already-generated WAVs
+python -m src.harness.generate_tts --skip-existing
+
+# Generate for a specific voice only
+python -m src.harness.generate_tts --voice 0
+```
+
+Output: `out/TTS_Turns/turns_index.json` + `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav`
+
+Turn categories: normal (complete sentences), pause (mid-sentence silence gap), hesitation (filler words like "um"/"uh"), ambiguous (trailing-off sentences).
+
+## Workflow 5: Add a New Audio Source
 
 1. Place the audio file in `fixtures/`
 2. Segment it: `python -m src.harness.segment fixtures/new_file.m4a`

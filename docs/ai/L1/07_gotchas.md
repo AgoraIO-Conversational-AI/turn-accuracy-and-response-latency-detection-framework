@@ -6,14 +6,20 @@ If you use Multi-Output Device for speaker monitoring (instead of MacBook Pro Sp
 
 **Fix**: AudioEngine auto-detects "MacBook Pro Speakers" specifically for monitoring output.
 
-## TTFA Systematic Bias
+## TTFA Calculation and Buffer Overhead
 
-There's a ~50-80ms positive bias in TTFA measurements due to:
+TTFA is measured from the turn's expected `duration_ms` (from the index), not from the wall-clock time that `play_turn()` returns. `play_turn()` returns ~200-400ms late due to OS audio buffer drain, which would inflate TTFA measurements.
+
+There's still a ~50-80ms positive bias from:
 - Audio buffer latency (1024 frames @ 48kHz = 21ms)
 - VAD chunk processing (512 samples @ 16kHz = 32ms)
 - Queue/event loop polling (10-20ms)
 
-This is documented and consistent — useful for relative comparisons between turns/agents.
+This is consistent — useful for relative comparisons between turns/agents.
+
+## Playback Hang Protection
+
+`play_turn()` can occasionally hang (OS audio stream never completes). The turn loop uses wall-clock elapsed time past the expected duration instead of waiting for `play_turn()` to return. A 2-second timeout with force-stop fallback prevents indefinite hangs.
 
 ## Negative TTFA
 
