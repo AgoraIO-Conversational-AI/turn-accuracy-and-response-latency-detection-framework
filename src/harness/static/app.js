@@ -200,6 +200,8 @@ function renderTurnTable() {
       typeHtml = `<span class="category-badge cat-normal">normal</span>`;
     } else if (cat === "hesitation") {
       typeHtml = `<span class="category-badge cat-hesitation">hesitation</span>`;
+    } else if (cat === "hesitation2") {
+      typeHtml = `<span class="category-badge cat-hesitation2">hesitation2</span>`;
     } else if (cat === "pause") {
       typeHtml = `<span class="category-badge cat-pause">pause</span>`;
     } else if (cat === "ambiguous") {
@@ -331,31 +333,6 @@ function renderSummary(data) {
 function updateControls() {
   document.getElementById("btn-run-all").disabled = state.running;
   document.getElementById("btn-stop").disabled = !state.running;
-  updatePlayPauseIcon();
-}
-
-function updatePlayPauseIcon() {
-  const btn = document.getElementById("btn-play-pause");
-  const playIcon = document.getElementById("icon-play");
-  const pauseIcon = document.getElementById("icon-pause");
-  if (!btn) return;
-  if (state.running) {
-    playIcon.classList.add("hidden");
-    pauseIcon.classList.remove("hidden");
-    btn.classList.add("active");
-  } else {
-    playIcon.classList.remove("hidden");
-    pauseIcon.classList.add("hidden");
-    btn.classList.remove("active");
-  }
-}
-
-function togglePlayPause() {
-  if (state.running) {
-    stopRun();
-  } else {
-    runAll();
-  }
 }
 
 // --- Actions ---

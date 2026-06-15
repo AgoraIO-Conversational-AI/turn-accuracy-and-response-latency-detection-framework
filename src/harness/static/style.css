@@ -196,36 +196,6 @@ summary {
   font-weight: 600;
 }
 
-.stat-control {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.play-pause-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: 2px solid #3a3a5e;
-  background: #2a2a3e;
-  color: #e0e0e0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.play-pause-btn:hover {
-  background: #3a3a5e;
-  border-color: #5a5a7e;
-}
-
-.play-pause-btn.active {
-  border-color: #1976d2;
-  color: #1976d2;
-}
-
 /* Turn Table */
 table {
   width: 100%;
@@ -328,6 +298,7 @@ tbody tr.barge-in {
 
 .cat-normal { background: #2e7d32; color: #fff; }
 .cat-hesitation { background: #e65100; color: #fff; }
+.cat-hesitation2 { background: #bf360c; color: #fff; }
 .cat-pause { background: #6a1b9a; color: #fff; }
 .cat-ambiguous { background: #0277bd; color: #fff; }
 

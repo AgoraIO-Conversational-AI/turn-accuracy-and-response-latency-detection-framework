@@ -70,10 +70,27 @@ Copy `.env.example` to `.env` and fill in API keys:
 ## First Run
 
 ```bash
-# Segment source audio into turns
+# Option A: Generate synthetic TTS test turns (recommended)
+# Requires TTS_KEY in .env — produces 25 turns across 5 categories
+python -m src.harness.generate_tts
+
+# Option B: Segment real recorded audio into turns
 python -m src.harness.segment fixtures/sovereign_place_5.m4a
 
 # Start server
 python -m src.harness
 # Open http://localhost:8000
 ```
+
+## Running on a Different Machine
+
+The framework requires macOS with BlackHole virtual audio drivers — it cannot run on headless Linux servers. To set up on a new Mac:
+
+1. Clone the repo and install Python dependencies (`pip install -r requirements.txt`)
+2. Install system dependencies: `brew install ffmpeg blackhole-2ch blackhole-16ch` and reboot
+3. Configure Audio MIDI Setup (see steps above)
+4. Copy `.env.example` to `.env` and set `TTS_KEY` if generating TTS turns
+5. Generate turns: `python -m src.harness.generate_tts`
+6. Start the harness: `python -m src.harness`
+7. Open a ConvAI agent in a browser tab (mic set to BlackHole 2ch)
+8. Open http://localhost:8000, select a source, and click Run All

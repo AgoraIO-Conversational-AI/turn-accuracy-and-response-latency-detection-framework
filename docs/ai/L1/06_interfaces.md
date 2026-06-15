@@ -82,4 +82,6 @@ class TurnResult:
 ```
 
 TTS-specific fields (`category`, `expected_complete`, `target_gap_ms`, `voice_id`) are present in TTS turn indexes. Segmented audio indexes omit them — the harness handles both formats.
+
+Categories: `normal`, `pause`, `hesitation`, `hesitation2`, `ambiguous`. The `hesitation2` category uses prosody-only pauses (ElevenLabs `[hesitation]` tags) without filler words.
 ```

@@ -1,9 +1,11 @@
 """Generate TTS turn-accuracy test audio via ElevenLabs.
 
-Produces 75 WAVs (5 voices x 15 sentences) across three categories:
-  - Complete (5): semantically and prosodically complete sentences
-  - Hesitation (5): sentences with filler words and [short pause] tags
+Produces WAVs across five categories:
+  - Normal (5): semantically and prosodically complete sentences
+  - Hesitation (5): sentences with filler words (um/uh) and [short pause] tags
   - Pause (5): mid-sentence [pause] tag producing natural silence
+  - Ambiguous (5): trailing-off sentences that sound potentially complete
+  - Hesitation2 (5): prosody-only pauses via [hesitation] tags, no fillers
 
 Uses the /with-timestamps endpoint to get character-level alignment data,
 then measures actual speech boundaries via RMS amplitude analysis to
@@ -48,7 +50,7 @@ VOICES = {
 }
 
 # ── Sentence definitions ───────────────────────────────────────────────────
-# 20 total turns: 5 normal + 5 hesitation + 5 pause + 5 ambiguous.
+# 25 total turns: 5 normal + 5 hesitation + 5 pause + 5 ambiguous + 5 hesitation2.
 # Each sentence assigned to one voice. Order is deliberately irregular
 # so the LLM under test cannot predict the pattern.
 # Hesitation/pause sentences have exactly one silence point each.
@@ -71,7 +73,7 @@ SENTENCES = [
         "expected_complete": False,
         "target_gap_ms": 650,
     },
-    # 3 — hesitation 800ms
+    # 2 — hesitation 800ms
     {
         "voice": 2,
         "category": "hesitation",
@@ -79,6 +81,15 @@ SENTENCES = [
         "display_text": "I need to update my... um, my billing address.",
         "expected_complete": False,
         "target_gap_ms": 800,
+    },
+    # 3 — hesitation2 600ms
+    {
+        "voice": 0,
+        "category": "hesitation2",
+        "tts_text": "I think the issue is that the [hesitation] [short pause] delivery was supposed to arrive on Monday.",
+        "display_text": "I think the issue is that the [hesitation] [short pause] delivery was supposed to arrive on Monday.",
+        "expected_complete": False,
+        "target_gap_ms": 600,
     },
     # 4 — ambiguous
     {
@@ -105,7 +116,16 @@ SENTENCES = [
         "expected_complete": False,
         "target_gap_ms": 1000,
     },
-    # 7 — ambiguous
+    # 7 — hesitation2 800ms
+    {
+        "voice": 1,
+        "category": "hesitation2",
+        "tts_text": "The last time I checked it was [hesitation] [hesitation] [pause] somewhere around forty five dollars.",
+        "display_text": "The last time I checked it was [hesitation] [hesitation] [pause] somewhere around forty five dollars.",
+        "expected_complete": False,
+        "target_gap_ms": 800,
+    },
+    # 8 — ambiguous
     {
         "voice": 3,
         "category": "ambiguous",
@@ -113,7 +133,7 @@ SENTENCES = [
         "display_text": "I already tried that once before so.",
         "expected_complete": True,
     },
-    # 8 — normal
+    # 9 — normal
     {
         "voice": 4,
         "category": "normal",
@@ -121,7 +141,7 @@ SENTENCES = [
         "display_text": "Thanks for your help, I appreciate it.",
         "expected_complete": True,
     },
-    # 9 — hesitation 500ms
+    # 10 — hesitation 500ms
     {
         "voice": 0,
         "category": "hesitation",
@@ -130,7 +150,16 @@ SENTENCES = [
         "expected_complete": False,
         "target_gap_ms": 500,
     },
-    # 10 — pause 500ms
+    # 11 — hesitation2 1000ms
+    {
+        "voice": 2,
+        "category": "hesitation2",
+        "tts_text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
+        "display_text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
+        "expected_complete": False,
+        "target_gap_ms": 1000,
+    },
+    # 12 — pause 500ms
     {
         "voice": 0,
         "category": "pause",
@@ -139,7 +168,7 @@ SENTENCES = [
         "expected_complete": False,
         "target_gap_ms": 500,
     },
-    # 11 — ambiguous
+    # 13 — ambiguous
     {
         "voice": 4,
         "category": "ambiguous",
@@ -147,7 +176,7 @@ SENTENCES = [
         "display_text": "I think that might actually work but I'm not sure.",
         "expected_complete": True,
     },
-    # 12 — normal
+    # 14 — normal
     {
         "voice": 3,
         "category": "normal",
@@ -155,7 +184,7 @@ SENTENCES = [
         "display_text": "No, I don't have any other questions at the moment.",
         "expected_complete": True,
     },
-    # 13 — hesitation 1200ms
+    # 15 — hesitation 1200ms
     {
         "voice": 1,
         "category": "hesitation",
@@ -164,7 +193,16 @@ SENTENCES = [
         "expected_complete": False,
         "target_gap_ms": 1200,
     },
-    # 14 — pause 800ms
+    # 16 — hesitation2 1200ms
+    {
+        "voice": 3,
+        "category": "hesitation2",
+        "tts_text": "I was going to renew but then the [hesitation] [hesitation] [pause] [pause] price went up by almost double.",
+        "display_text": "I was going to renew but then the [hesitation] [hesitation] [pause] [pause] price went up by almost double.",
+        "expected_complete": False,
+        "target_gap_ms": 1200,
+    },
+    # 17 — pause 800ms
     {
         "voice": 2,
         "category": "pause",
@@ -173,7 +211,7 @@ SENTENCES = [
         "expected_complete": False,
         "target_gap_ms": 800,
     },
-    # 15 — hesitation 650ms
+    # 18 — hesitation 650ms
     {
         "voice": 1,
         "category": "hesitation",
@@ -182,7 +220,7 @@ SENTENCES = [
         "expected_complete": False,
         "target_gap_ms": 650,
     },
-    # 16 — ambiguous
+    # 19 — ambiguous
     {
         "voice": 0,
         "category": "ambiguous",
@@ -190,7 +228,7 @@ SENTENCES = [
         "display_text": "It's more of a personal thing I suppose, I don't know.",
         "expected_complete": True,
     },
-    # 17 — normal
+    # 20 — normal
     {
         "voice": 1,
         "category": "normal",
@@ -198,7 +236,7 @@ SENTENCES = [
         "display_text": "Can you confirm my reservation for Saturday the fourteenth?",
         "expected_complete": True,
     },
-    # 18 — pause 1200ms
+    # 21 — pause 1200ms
     {
         "voice": 0,
         "category": "pause",
@@ -207,7 +245,7 @@ SENTENCES = [
         "expected_complete": False,
         "target_gap_ms": 1200,
     },
-    # 19 — hesitation 1000ms
+    # 22 — hesitation 1000ms
     {
         "voice": 3,
         "category": "hesitation",
@@ -216,13 +254,76 @@ SENTENCES = [
         "expected_complete": False,
         "target_gap_ms": 1000,
     },
-    # 20 — ambiguous
+    # 23 — hesitation2 1500ms
+    {
+        "voice": 4,
+        "category": "hesitation2",
+        "tts_text": "The problem is that my old [hesitation] [hesitation] [pause] [pause] subscription was cancelled without any notice.",
+        "display_text": "The problem is that my old [hesitation] [hesitation] [pause] [pause] subscription was cancelled without any notice.",
+        "expected_complete": False,
+        "target_gap_ms": 1500,
+    },
+    # 24 — ambiguous
     {
         "voice": 1,
         "category": "ambiguous",
         "tts_text": "I mean I'm not entirely sure about that, it's hard to say.",
         "display_text": "I mean I'm not entirely sure about that, it's hard to say.",
         "expected_complete": True,
+    },
+]
+
+# ── Hesitation2 sentences ─────────────────────────────────────────────────
+# Prosody-only hesitations: no filler words (um/uh) and no "..." in display.
+# ElevenLabs uses [hesitation]/[pause] tags to produce prosodic lengthening
+# on the last word before the gap, making it sound like the speaker is
+# thinking rather than using explicit fillers. Larger gaps (up to 1500ms).
+
+HESITATION2_SENTENCES = [
+    # 0 — hesitation2 600ms
+    {
+        "voice": 0,
+        "category": "hesitation2",
+        "tts_text": "I think the issue is that the [hesitation] [short pause] delivery was supposed to arrive on Monday.",
+        "display_text": "I think the issue is that the [hesitation] [short pause] delivery was supposed to arrive on Monday.",
+        "expected_complete": False,
+        "target_gap_ms": 600,
+    },
+    # 1 — hesitation2 800ms
+    {
+        "voice": 1,
+        "category": "hesitation2",
+        "tts_text": "The last time I checked it was [hesitation] [hesitation] [pause] somewhere around forty five dollars.",
+        "display_text": "The last time I checked it was [hesitation] [hesitation] [pause] somewhere around forty five dollars.",
+        "expected_complete": False,
+        "target_gap_ms": 800,
+    },
+    # 2 — hesitation2 1000ms
+    {
+        "voice": 2,
+        "category": "hesitation2",
+        "tts_text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
+        "display_text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
+        "expected_complete": False,
+        "target_gap_ms": 1000,
+    },
+    # 3 — hesitation2 1200ms
+    {
+        "voice": 3,
+        "category": "hesitation2",
+        "tts_text": "I was going to renew but then the [hesitation] [hesitation] [pause] [pause] price went up by almost double.",
+        "display_text": "I was going to renew but then the [hesitation] [hesitation] [pause] [pause] price went up by almost double.",
+        "expected_complete": False,
+        "target_gap_ms": 1200,
+    },
+    # 4 — hesitation2 1500ms
+    {
+        "voice": 4,
+        "category": "hesitation2",
+        "tts_text": "The problem is that my old [hesitation] [hesitation] [pause] [pause] subscription was cancelled without any notice.",
+        "display_text": "The problem is that my old [hesitation] [hesitation] [pause] [pause] subscription was cancelled without any notice.",
+        "expected_complete": False,
+        "target_gap_ms": 1500,
     },
 ]
 
@@ -603,7 +704,7 @@ def generate(
 
         if wav_path.exists() and not force:
             # stretch gaps on existing files if needed (idempotent)
-            if target_gap and category in ("hesitation", "pause"):
+            if target_gap and category in ("hesitation", "hesitation2", "pause"):
                 _set_gap_duration(wav_path, target_gap)
 
             dur = _wav_duration_ms(wav_path)
@@ -658,7 +759,7 @@ def generate(
 
         if ok:
             # set silence gap to exact target duration
-            if target_gap and category in ("hesitation", "pause"):
+            if target_gap and category in ("hesitation", "hesitation2", "pause"):
                 adjusted = _set_gap_duration(wav_path, target_gap)
                 if adjusted:
                     print(f"         set gap to {target_gap}ms")
@@ -685,7 +786,7 @@ def generate(
             if boundaries["silence_gaps"]:
                 gap_durs = [g["duration_ms"] for g in boundaries["silence_gaps"]]
                 gaps_str = f" gaps={gap_durs}ms"
-                if target_gap and category in ("hesitation", "pause"):
+                if target_gap and category in ("hesitation", "hesitation2", "pause"):
                     short = [d for d in gap_durs if d < target_gap]
                     if short:
                         gaps_str += f" WARNING: {short}ms < {target_gap}ms target"
@@ -715,12 +816,12 @@ def generate(
     print(f"\nwrote {index_path} ({len(turns_data)} turns)")
 
     # validation summary: check all gaps meet per-sentence targets
-    print("\n── VAD threshold validation (target range 500-1200ms) ──")
+    print("\n── VAD threshold validation (target range 500-1500ms) ──")
     issues = []
     ok_count = 0
     for t in turns_data:
         cat = t["category"]
-        if cat not in ("hesitation", "pause"):
+        if cat not in ("hesitation", "hesitation2", "pause"):
             continue
         target = t.get("target_gap_ms", 0)
         if not target:
@@ -750,6 +851,185 @@ def generate(
     return index
 
 
+HESITATION2_OUT_DIR = BASE_DIR / "out" / "TTS_Hesitation2"
+
+
+def generate_hesitation2(
+    api_key: str,
+    force: bool = False,
+    skip_existing: bool = False,
+) -> dict:
+    """Generate hesitation2 TTS turns — prosody-only pauses, no filler words."""
+    turns_dir = HESITATION2_OUT_DIR / "turns"
+    turns_dir.mkdir(parents=True, exist_ok=True)
+
+    turns_data = []
+
+    for turn_num, sentence in enumerate(HESITATION2_SENTENCES):
+        speaker = sentence["voice"]
+        voice_id = VOICES[speaker]
+        category = sentence["category"]
+        display_text = sentence["display_text"]
+        expected_complete = sentence["expected_complete"]
+        target_gap = sentence.get("target_gap_ms", 0)
+
+        speaker_dir = turns_dir / f"speaker{speaker}"
+        speaker_dir.mkdir(parents=True, exist_ok=True)
+        wav_path = speaker_dir / f"turn_{turn_num:03d}.wav"
+
+        turn_entry = {
+            "turn": turn_num,
+            "speaker": speaker,
+            "start_ms": 0,
+            "end_ms": 0,
+            "duration_ms": 0,
+            "text": display_text,
+            "word_count": len(display_text.split()),
+            "hesitations": [],
+            "max_hesitation_ms": 0,
+            "category": category,
+            "expected_complete": expected_complete,
+            "target_gap_ms": target_gap,
+            "voice_id": voice_id,
+        }
+
+        if wav_path.exists() and not force:
+            if target_gap:
+                _set_gap_duration(wav_path, target_gap)
+
+            dur = _wav_duration_ms(wav_path)
+            turn_entry["duration_ms"] = dur
+            turn_entry["end_ms"] = dur
+
+            boundaries = _analyze_speech_boundaries(wav_path)
+            turn_entry["speech_start_ms"] = boundaries["speech_start_ms"]
+            turn_entry["speech_end_ms"] = boundaries["speech_end_ms"]
+            turn_entry["rms_peak"] = boundaries["rms_peak"]
+            if boundaries["silence_gaps"]:
+                turn_entry["hesitations"] = [
+                    {"at_ms": g["start_ms"], "duration_ms": g["duration_ms"]}
+                    for g in boundaries["silence_gaps"]
+                ]
+                turn_entry["max_hesitation_ms"] = max(
+                    g["duration_ms"] for g in boundaries["silence_gaps"]
+                )
+
+            label = "SKIP" if skip_existing else "EXISTS"
+            gaps_info = ""
+            if boundaries["silence_gaps"]:
+                gaps_info = f" gaps={[g['duration_ms'] for g in boundaries['silence_gaps']]}ms"
+            print(f"  [{turn_num:03d}] S{speaker} {category:12s} {label} {dur}ms "
+                  f"(speech {boundaries['speech_start_ms']}-{boundaries['speech_end_ms']}ms"
+                  f"{gaps_info})")
+            turns_data.append(turn_entry)
+            continue
+
+        print(f"  [{turn_num:03d}] S{speaker} {category:12s} generating...")
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            tmp_mp3 = Path(tmp.name)
+
+        api_resp = _synthesize_with_timestamps(
+            sentence["tts_text"], voice_id, api_key, tmp_mp3,
+        )
+
+        ok = False
+        if api_resp is not None:
+            ok = _mp3_to_wav(tmp_mp3, wav_path)
+
+            if ok:
+                align_info = _extract_alignment_info(api_resp)
+                if align_info:
+                    turn_entry["alignment_start_s"] = align_info["alignment_start_s"]
+                    turn_entry["alignment_end_s"] = align_info["alignment_end_s"]
+
+        tmp_mp3.unlink(missing_ok=True)
+
+        if ok:
+            if target_gap:
+                adjusted = _set_gap_duration(wav_path, target_gap)
+                if adjusted:
+                    print(f"         set gap to {target_gap}ms")
+
+            dur = _wav_duration_ms(wav_path)
+            turn_entry["duration_ms"] = dur
+            turn_entry["end_ms"] = dur
+
+            boundaries = _analyze_speech_boundaries(wav_path)
+            turn_entry["speech_start_ms"] = boundaries["speech_start_ms"]
+            turn_entry["speech_end_ms"] = boundaries["speech_end_ms"]
+            turn_entry["rms_peak"] = boundaries["rms_peak"]
+            if boundaries["silence_gaps"]:
+                turn_entry["hesitations"] = [
+                    {"at_ms": g["start_ms"], "duration_ms": g["duration_ms"]}
+                    for g in boundaries["silence_gaps"]
+                ]
+                turn_entry["max_hesitation_ms"] = max(
+                    g["duration_ms"] for g in boundaries["silence_gaps"]
+                )
+
+            gaps_str = ""
+            if boundaries["silence_gaps"]:
+                gap_durs = [g["duration_ms"] for g in boundaries["silence_gaps"]]
+                gaps_str = f" gaps={gap_durs}ms"
+            print(f"         -> {dur}ms "
+                  f"(speech {boundaries['speech_start_ms']}-{boundaries['speech_end_ms']}ms"
+                  f"{gaps_str})")
+        else:
+            print(f"         -> FAILED", file=sys.stderr)
+
+        turns_data.append(turn_entry)
+        time.sleep(RATE_LIMIT_SLEEP)
+
+    # build index
+    index = {
+        "audio_file": "elevenlabs_tts_hesitation2",
+        "provider": "elevenlabs",
+        "model": MODEL_ID,
+        "total_turns": len(turns_data),
+        "voices": {str(k): v for k, v in VOICES.items()},
+        "turns": turns_data,
+    }
+
+    HESITATION2_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    index_path = HESITATION2_OUT_DIR / "turns_index.json"
+    with open(index_path, "w") as f:
+        json.dump(index, f, indent=2)
+    print(f"\nwrote {index_path} ({len(turns_data)} turns)")
+
+    # validation
+    print("\n── gap validation ──")
+    issues = []
+    ok_count = 0
+    for t in turns_data:
+        target = t.get("target_gap_ms", 0)
+        if not target:
+            continue
+        hes = t.get("hesitations", [])
+        if not hes:
+            issues.append(
+                f"  turn {t['turn']:03d} (target {target}ms): "
+                f"NO silence gaps detected"
+            )
+        else:
+            max_gap = max(h["duration_ms"] for h in hes)
+            if max_gap < target:
+                issues.append(
+                    f"  turn {t['turn']:03d} (target {target}ms): "
+                    f"max gap {max_gap}ms < target"
+                )
+            else:
+                ok_count += 1
+
+    if issues:
+        print(f"WARNING: {len(issues)} turns have gaps below target:")
+        for issue in issues:
+            print(issue)
+    print(f"OK: {ok_count}/{len(turns_data)} turns meet their targets")
+
+    return index
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate TTS turn-accuracy test audio via ElevenLabs",
@@ -762,6 +1042,10 @@ def main():
         "--skip-existing", action="store_true",
         help="Skip existing WAVs without re-generating (for resuming)",
     )
+    parser.add_argument(
+        "--hesitation2", action="store_true",
+        help="Generate hesitation2 turns (prosody-only, no fillers, larger gaps)",
+    )
     args = parser.parse_args()
 
     api_key = _load_tts_key()
@@ -770,11 +1054,18 @@ def main():
         print("Set TTS_KEY=your_elevenlabs_api_key in .env", file=sys.stderr)
         sys.exit(1)
 
-    generate(
-        api_key=api_key,
-        force=args.force,
-        skip_existing=args.skip_existing,
-    )
+    if args.hesitation2:
+        generate_hesitation2(
+            api_key=api_key,
+            force=args.force,
+            skip_existing=args.skip_existing,
+        )
+    else:
+        generate(
+            api_key=api_key,
+            force=args.force,
+            skip_existing=args.skip_existing,
+        )
 
 
 if __name__ == "__main__":

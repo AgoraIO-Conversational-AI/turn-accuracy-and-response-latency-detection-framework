@@ -44,19 +44,26 @@ Output: `diarize_output/raw_*.json`, `diarize_output/*_speaker*.wav`, `diarize_o
 ## Workflow 4: Generate TTS Test Turns
 
 ```bash
-# Generate all 20 turns across 5 speakers (requires TTS_KEY in .env)
+# Generate all 25 turns across 5 speakers (requires TTS_KEY in .env)
 python -m src.harness.generate_tts
 
-# Skip already-generated WAVs
-python -m src.harness.generate_tts --skip-existing
+# Re-generate all WAVs from scratch
+python -m src.harness.generate_tts --force
 
-# Generate for a specific voice only
-python -m src.harness.generate_tts --voice 0
+# Generate hesitation2-only subset for isolated testing
+python -m src.harness.generate_tts --hesitation2
 ```
 
 Output: `out/TTS_Turns/turns_index.json` + `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav`
 
-Turn categories: normal (complete sentences), pause (mid-sentence silence gap), hesitation (filler words like "um"/"uh"), ambiguous (trailing-off sentences).
+Turn categories (25 total, interleaved):
+- **normal** (5): semantically and prosodically complete sentences
+- **pause** (5): mid-sentence `[pause]` tag producing silence gaps (500-1200ms)
+- **hesitation** (5): filler words ("um"/"uh") with `[hesitation]` tags (500-1200ms)
+- **hesitation2** (5): prosody-only pauses via `[hesitation]` tags, no fillers (600-1500ms)
+- **ambiguous** (5): trailing-off sentences that sound potentially complete
+
+Gap durations are enforced precisely — ElevenLabs produces a natural gap via tags, then the generator stretches/trims to the exact target using comfort noise.
 
 ## Workflow 5: Add a New Audio Source
 

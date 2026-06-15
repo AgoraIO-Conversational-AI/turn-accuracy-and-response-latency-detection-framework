@@ -35,10 +35,10 @@ SOURCES = {
         "index": OUT_DIR / "TTS_Turns" / "turns_index.json",
         "turns_dir": OUT_DIR / "TTS_Turns" / "turns",
     },
-    "tts_debug": {
-        "label": "TTS Debug (1,2,5,17,18)",
-        "index": OUT_DIR / "TTS_Turns" / "turns_index_debug.json",
-        "turns_dir": OUT_DIR / "TTS_Turns" / "turns",
+    "tts_hesitation2": {
+        "label": "TTS Hesitation 2",
+        "index": OUT_DIR / "TTS_Hesitation2" / "turns_index.json",
+        "turns_dir": OUT_DIR / "TTS_Hesitation2" / "turns",
     },
 }
 
@@ -96,7 +96,7 @@ class TurnManager:
         self.run = RunState()
         self._turns_data: list[dict] = []
         self._stop_requested = False
-        self._current_source = "sovereign5"
+        self._current_source = "tts_turns"
         self._load_turns()
 
     def _load_turns(self):

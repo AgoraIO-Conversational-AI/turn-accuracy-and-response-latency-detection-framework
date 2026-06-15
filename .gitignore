@@ -16,8 +16,9 @@ env/
 # Environment variables
 .env
 
-# Generated output
-out/
+# Generated output (keep TTS_Turns for portability)
+out/*
+!out/TTS_Turns/
 diarize_output/
 
 # OS files
@@ -29,9 +30,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
-
-# Audio artifacts (generated WAVs)
-*.wav
 
 # Keep fixture audio files
 !fixtures/*.m4a
