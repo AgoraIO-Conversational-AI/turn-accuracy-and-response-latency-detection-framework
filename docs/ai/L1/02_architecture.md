@@ -1,5 +1,43 @@
 # L1 — Architecture
 
+There are two runtime modes that produce the same `TurnResult` records; the choice is about where the audio loop runs, not what it measures.
+
+## Browser Mode (default)
+
+```
+Server host (any OS)                     Operator's Mac (Chromium)
+┌──────────────────────────────┐         ┌─────────────────────────────────┐
+│ FastAPI on :8000             │         │ static/browser_harness.js       │
+│  ┌────────┐  ┌─────────────┐ │  HTTP   │  ┌──────────────────────────┐  │
+│  │ static │  │ TurnManager │◄│◄──────► │  │ runBrowserTurn()          │  │
+│  │ WAV    │  │ ingest_     │ │  /api/  │  │  ├─ <audio>.setSinkId →   │  │
+│  │ index  │  │ browser_    │ │  /ws    │  │  │   BlackHole 2ch         │  │
+│  └────────┘  │ result()    │ │         │  │  │   (+ optional monitor) │  │
+│              └─────────────┘ │         │  │  └─ getUserMedia({input}) │  │
+│                              │         │  │     → AudioContext@16k    │  │
+│                              │         │  │     → ScriptProcessor 512 │  │
+│                              │         │  │     → BrowserVad (RMS)    │  │
+│                              │         │  └──────────────────────────┘  │
+└──────────────────────────────┘         └─────────────────────────────────┘
+                                                       │
+                                                       ▼
+                                            BlackHole 16ch ◄─ Mac system output
+                                            (loopback from agent tab)
+```
+
+1. Browser fetches `/api/wav/{source}/{speaker}/{turn}` for the next turn's WAV.
+2. `runBrowserTurn()` opens a 16 kHz `AudioContext`, calls `getUserMedia` on the chosen Input device, wires a `ScriptProcessor` (512 samples = 32 ms VAD frame) through a gain-0 sink so nothing leaks to the speakers.
+3. Two `HTMLMediaElement`s play the WAV — one to `devices.output` via `setSinkId` (the BlackHole 2ch loopback into the agent tab's mic), one optional monitor.
+4. `BrowserVad` (mirror of Python `VadEngine`: RMS ≥ 0.01, 300 ms hangover) detects `speech_start` / `speech_end` events.
+5. Poll loop computes TTFA the instant the first `speech_start` fires; emits a `phase` event so the row repaints immediately, then waits for the post-response silence timeout before resolving.
+6. Result POSTs to `/api/results/submit`; `TurnManager.ingest_browser_result()` stores it and broadcasts the same `turn_done` event server-mode would (with `source: "browser"`).
+
+`AbortSignal` is plumbed through Stop / Reset / new-Run-All so an in-flight turn tears down playback + capture cleanly instead of writing into the next run's row.
+
+## Server Mode
+
+The original system — runs entirely on the operator's Mac. The page just shells out to the server-side audio engine over WebSocket.
+
 ## System Design
 
 ```

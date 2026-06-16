@@ -4,20 +4,51 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Turn Accuracy and Response Latency Detection Framework</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
   <header>
     <h1>Agent Turn Accuracy and Response Latency Detection Framework</h1>
     <div id="connection-status" class="status-dot disconnected" title="WebSocket disconnected"></div>
+    <button id="btn-setup" class="btn" title="Setup instructions">📘 Setup</button>
   </header>
 
-  <section id="setup-info" class="info-banner">
-    <strong>Setup:</strong>
-    System Output &rarr; Multi-Output Device (BlackHole 16ch + Speakers).
-    Browser Mic &rarr; BlackHole 2ch.
-    Open your ConvAI agent in another tab, then press Play on a turn below.
-  </section>
+  <!-- Setup modal — opens from the header button. -->
+  <div id="setup-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="setup-modal-title">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-panel">
+      <div class="modal-head">
+        <h2 id="setup-modal-title">Setup</h2>
+        <button class="modal-close" data-close-modal aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+
+        <p>You're on the hosted UI in Chrome on your Mac. The agent runs in another browser tab on the same Mac. Three steps:</p>
+
+        <ol class="setup-steps">
+          <li>
+            <strong>Install BlackHole 2ch + 16ch</strong>, then reboot.
+            <pre><code>brew install blackhole-2ch blackhole-16ch</code></pre>
+            <p class="step-why"><em>Why:</em> these are virtual audio cables. <strong>BlackHole 2ch</strong> is the wire the page uses to push turn audio into the agent's mic; <strong>BlackHole 16ch</strong> is the wire the page listens on for the agent's TTS reply (so we can time when it starts).</p>
+          </li>
+          <li>
+            <strong>Create a Multi-Output Device</strong> that combines BlackHole 16ch + your real speakers, and set it as the Mac's system audio output.
+            <p class="step-how">Open <em>Audio MIDI Setup</em> → <em>+</em> in the bottom-left → <em>Create Multi-Output Device</em> → tick <em>BlackHole 16ch</em> + your speakers. Then System Settings → Sound → Output → pick that Multi-Output Device.</p>
+            <p class="step-why"><em>Why:</em> whatever the agent tab plays out goes to the system output. We need it to hit BlackHole 16ch (so the page hears the response) <em>and</em> your real speakers (so you hear it too) — a Multi-Output Device sends one stream to both at once.</p>
+          </li>
+          <li>
+            <strong>Open the agent under test in another browser tab</strong>, set <em>its</em> microphone to BlackHole 2ch, then come back here and hit <strong>Run All</strong>.
+            <p class="step-how">In the agent's tab: address-bar permissions icon → Site settings → Microphone → <em>BlackHole 2ch</em>. Back in this tab, the three device slots below should already auto-pick BlackHole 2ch / your speakers / BlackHole 16ch — click <em>Grant mic access</em> in the Audio Devices panel the first time so the labels appear.</p>
+            <p class="step-why"><em>Why:</em> the agent listens to whatever you put in <em>Output 1 (to agent under test)</em>; for this loopback to work, the agent has to be reading from the same wire — BlackHole 2ch on both sides.</p>
+          </li>
+        </ol>
+
+        <p class="setup-note"><strong>Quick sanity check before Run All:</strong> the live amplitude meter under <em>Input</em> should jump and go green past the yellow VAD threshold the moment the agent speaks. If it stays flat, the page isn't hearing the agent — re-check step 2 and that the system output is actually the Multi-Output Device.</p>
+        <p class="setup-note"><strong>External agent (phone, another laptop, hardware)?</strong> Skip step 2 entirely. Set <em>Output 1</em> to your real speakers (crank volume), <em>Input</em> to your built-in mic. The agent listens to the room, the page listens to the room mic.</p>
+        <p class="setup-note"><strong>Browser:</strong> Chrome / Edge / Opera / Brave only. Firefox and Safari can't pick the output device (<code>setSinkId</code>) and will fall back to system default.</p>
+      </div>
+    </div>
+  </div>
 
   <section id="controls">
     <div class="control-row">
@@ -39,7 +70,7 @@
       <button id="btn-reset" class="btn">Reset</button>
     </div>
 
-    <details id="device-config">
+    <details id="device-config" open>
       <summary>Audio Devices</summary>
       <div id="device-list"></div>
     </details>
@@ -99,6 +130,6 @@
     </table>
   </section>
 
-  <script src="/static/app.js"></script>
+  <script src="static/app.js"></script>
 </body>
 </html>

@@ -1,13 +1,36 @@
 # L1 — Setup
 
+There are two ways to run the harness; **browser mode is the default**. Server mode is kept for headless / scripted use.
+
+## Browser Mode (recommended)
+
+The page in `src/harness/static/` runs the audio loop entirely in the user's Chromium browser via `static/browser_harness.js`. The server only hosts the UI and ingests results. The operator's Mac is where BlackHole + speakers + mic actually live, even if the server is hosted elsewhere (e.g. a cloud VM).
+
+### Operator's Mac
+
+- macOS with **BlackHole 2ch + 16ch**: `brew install blackhole-2ch blackhole-16ch` (reboot required).
+- A Chromium-based browser (Chrome / Edge / Opera / Brave). `HTMLMediaElement.setSinkId` is required for output-device selection — Firefox and Safari don't ship it.
+- A **Multi-Output Device** combining BlackHole 16ch + your real speakers, set as macOS system output (see "Audio Routing" below).
+- The agent under test running in a separate browser tab with its mic set to BlackHole 2ch.
+
+That's all the operator needs. Open the hosted page, click **Grant mic access** in the Audio Devices panel, hit Run All. Three device slots auto-pick from labels (`BlackHole 2ch`, your real speakers, `BlackHole 16ch`) and remember any manual override across reloads.
+
+### Server host
+
+Any machine that can run Python 3.12 + the requirements below — does NOT need audio hardware, BlackHole, or even speakers. Used to serve the UI, the corpus WAVs (`GET /api/wav/...`), and ingest browser-measured results (`POST /api/results/submit`).
+
+## Server Mode (alternative)
+
+The original mode: `python -m src.harness` runs on the operator's Mac and uses Python `sounddevice` to drive BlackHole directly. UI talks to the local `:8000` server. Required if you can't use Chromium or want headless / scripted runs. Setup steps below ("Audio Routing") apply.
+
 ## System Requirements
 
-- macOS (required for BlackHole virtual audio drivers)
-- Python 3.12+
-- ffmpeg (`brew install ffmpeg`)
-- BlackHole 2ch + 16ch (`brew install blackhole-2ch blackhole-16ch`, reboot required)
+- macOS (required for BlackHole virtual audio drivers in both modes)
+- Python 3.12+ (server only)
+- BlackHole 2ch + 16ch (operator's Mac, both modes)
+- `ffmpeg` ONLY if you're going to run the prep scripts (`audio_prep.py`, `generate_tts.py`, `segment.py`, diarization comparator). The runtime harness doesn't shell out to it.
 
-## Python Dependencies
+## Python Dependencies (server)
 
 ```bash
 pip install -r requirements.txt

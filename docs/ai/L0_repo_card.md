@@ -12,11 +12,11 @@ A framework for measuring Conversational AI agent quality through automated turn
 
 ## Tech Stack
 
-Python 3.12+ | FastAPI + WebSocket | sounddevice | RMS amplitude detection | BlackHole virtual audio (macOS)
+Python 3.12+ | FastAPI + WebSocket | RMS amplitude detection | BlackHole virtual audio (macOS) | Two audio loops: server-side `sounddevice` and browser-side Web Audio (`HTMLMediaElement.setSinkId` + `getUserMedia` + `ScriptProcessor` VAD).
 
 ## Entry Points
 
-- `python -m src.harness` — start measurement server on :8000
+- `python -m src.harness` — start measurement server on :8000. Hosts the UI + ingests results. Audio loop can run server-side (sounddevice) OR entirely in the operator's browser (default, see `static/browser_harness.js`).
 - `python -m src.harness.segment <audio>` — segment audio into turns
 - `python -m src.harness.generate_tts` — generate synthetic TTS turns via ElevenLabs
 - `python -m src.diarization.compare_providers --audio <file>` — compare diarization providers

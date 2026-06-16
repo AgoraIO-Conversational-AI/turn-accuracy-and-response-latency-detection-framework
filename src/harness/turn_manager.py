@@ -391,6 +391,40 @@ class TurnManager:
         if not self._stop_requested:
             self._emit("run_complete", self.get_summary())
 
+    def ingest_browser_result(self, payload: dict) -> dict:
+        """Record a result measured by the browser-side harness.
+
+        Mirrors what run_single_turn() writes into self.run.results so the
+        summary stats and turn_done broadcast keep working the same way.
+        """
+        turn_id = payload["turn"]
+        turn = self._find_turn(turn_id)
+        result = TurnResult(
+            turn=turn["turn"],
+            speaker=turn["speaker"],
+            text=turn["text"],
+            duration_ms=turn["duration_ms"],
+            ttfa_ms=payload.get("ttfa_ms"),
+            barge_in=bool(payload.get("barge_in", False)),
+            barge_in_at_ms=payload.get("barge_in_at_ms"),
+            response_duration_ms=payload.get("response_duration_ms"),
+            status=payload.get("status") or "done",
+        )
+        self.run.results = [r for r in self.run.results if r.turn != result.turn]
+        self.run.results.append(result)
+        summary = self.get_summary()
+        self._emit("turn_done", {
+            "turn": result.turn,
+            "ttfa_ms": round(result.ttfa_ms, 1) if result.ttfa_ms is not None else None,
+            "barge_in": result.barge_in,
+            "barge_in_at_ms": round(result.barge_in_at_ms, 1) if result.barge_in_at_ms is not None else None,
+            "response_duration_ms": round(result.response_duration_ms, 1) if result.response_duration_ms is not None else None,
+            "status": result.status,
+            "summary": summary,
+            "source": "browser",
+        })
+        return summary
+
     def stop(self):
         """Request stop of current run and interrupt playback."""
         self._stop_requested = True
@@ -408,8 +442,15 @@ class TurnManager:
         if not results:
             return {}
 
-        # only include positive TTFAs in stats (negative = barge-in)
-        ttfas = [r.ttfa_ms for r in results if r.ttfa_ms is not None and r.ttfa_ms > 0]
+        # Barge-in rows excluded from TTFA stats entirely (negative ttfa
+        # = pre-end barge; positive ttfa with barge_in=True = hesitation
+        # gap barge). Both are reported only via barge_in_count, not in
+        # avg / median / p95.
+        ttfas = [
+            r.ttfa_ms
+            for r in results
+            if not r.barge_in and r.ttfa_ms is not None and r.ttfa_ms > 0
+        ]
         barge_ins = [r for r in results if r.barge_in]
         no_responses = [r for r in results if r.status == "no_response"]
 

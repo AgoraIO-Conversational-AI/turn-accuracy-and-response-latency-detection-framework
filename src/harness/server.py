@@ -5,12 +5,12 @@ import json
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .audio_engine import AudioEngine, list_devices
-from .turn_manager import TurnManager, TurnState
+from .turn_manager import SOURCES, TurnManager, TurnState
 from .vad_engine import VadEngine
 
 app = FastAPI(title="Turn Playback Harness")
@@ -108,11 +108,56 @@ async def set_source(source_key: str):
         return {"error": str(e)}
 
 
+@app.get("/api/wav/{source_key}/{speaker}/{turn_id}")
+async def get_wav(source_key: str, speaker: int, turn_id: int):
+    """Serve a single turn's WAV file for in-browser audition.
+
+    Lets the frontend (and remote operators behind nginx) preview turn
+    audio without going through the server-side AudioEngine, which only
+    works on a machine with the BlackHole / multi-output setup.
+    """
+    src = SOURCES.get(source_key)
+    if src is None:
+        raise HTTPException(status_code=404, detail="unknown source")
+    wav_path = src["turns_dir"] / f"speaker{speaker}" / f"turn_{turn_id:03d}.wav"
+    if not wav_path.exists():
+        raise HTTPException(status_code=404, detail="wav not found")
+    return FileResponse(
+        wav_path,
+        media_type="audio/wav",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
 @app.get("/api/results")
 async def get_results():
     if turn_manager is None:
         return {"results": []}
     return turn_manager.get_summary()
+
+
+@app.post("/api/results/submit")
+async def submit_result(result: dict):
+    """Browser-side harness pushes a measured turn result here.
+
+    Expected payload: {turn, ttfa_ms, barge_in, barge_in_at_ms,
+    response_duration_ms, status}. Server stores it and broadcasts a
+    turn_done event so the existing UI summary path keeps working.
+    """
+    if turn_manager is None:
+        raise HTTPException(status_code=503, detail="not initialized")
+    if "turn" not in result:
+        raise HTTPException(status_code=400, detail="missing 'turn' field")
+    try:
+        summary = turn_manager.ingest_browser_result(result)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    await broadcast({
+        "type": "browser_result",
+        "turn": result["turn"],
+        "summary": summary,
+    })
+    return {"ok": True, "summary": summary}
 
 
 @app.post("/api/devices/configure")

@@ -7,11 +7,18 @@ const state = {
   batchRunning: false,
 };
 
+// Base path the app is mounted under (e.g. "/benchmark/" behind nginx, "/"
+// for a bare uvicorn). Derived from the current document URL so the same
+// build works both at the root and behind a proxy.
+const BASE = location.pathname.endsWith("/")
+  ? location.pathname
+  : location.pathname + "/";
+
 // --- WebSocket ---
 
 function connect() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  state.ws = new WebSocket(`${proto}//${location.host}/ws`);
+  state.ws = new WebSocket(`${proto}//${location.host}${BASE}ws`);
 
   state.ws.onopen = () => {
     document.getElementById("connection-status").className = "status-dot connected";
@@ -41,7 +48,12 @@ function send(msg) {
 function handleMessage(msg) {
   switch (msg.type) {
     case "init":
-      renderDevices(msg.devices);
+      // Server-side device map ignored; the browser drives audio now.
+      break;
+
+    case "browser_result":
+      // No-op: we already updated the table locally; the broadcast just
+      // tells other open tabs to refresh if they care.
       break;
 
     case "source_changed":
@@ -73,21 +85,29 @@ function handleMessage(msg) {
       break;
 
     case "response_detected":
-      setTurnTtfa(msg.turn, msg.ttfa_ms);
+      // Browser-mode already painted the cell locally in phaseHandler.
+      if (msg.source !== "browser") setTurnTtfa(msg.turn, msg.ttfa_ms);
       updateCurrentTurnMeta(`TTFA: ${msg.ttfa_ms.toFixed(0)}ms — recording response...`);
       break;
 
     case "turn_done":
+      // Browser-mode submits POST /api/results/submit which the server
+      // echoes back as turn_done. We already painted the row locally in
+      // runBrowserTurnFlow — only treat this WS event as authoritative
+      // for the summary stats, and skip the TTFA cell write for
+      // barge-in rows (which should remain blank).
       state.results[msg.turn] = msg;
       state.currentTurn = null;
-      // only clear running if not in a batch run
       if (!state.batchRunning) {
         state.running = false;
         updateControls();
       }
-      setTurnStatus(msg.turn, msg.status);
-      if (msg.ttfa_ms != null) {
-        setTurnTtfa(msg.turn, msg.ttfa_ms);
+      if (msg.source !== "browser") {
+        // Server-driven path (legacy) still owns the row paint.
+        setTurnStatus(msg.turn, msg.status);
+        if (!msg.barge_in && msg.ttfa_ms != null) {
+          setTurnTtfa(msg.turn, msg.ttfa_ms);
+        }
       }
       if (msg.summary) {
         renderSummary(msg.summary);
@@ -135,7 +155,7 @@ function handleMessage(msg) {
 // --- Load Sources & Turns ---
 
 async function loadSources() {
-  const resp = await fetch("/api/sources");
+  const resp = await fetch(`${BASE}api/sources`);
   const data = await resp.json();
   renderSourceSelect(data.sources);
 }
@@ -159,7 +179,7 @@ function changeSource() {
 
 async function loadTurns() {
   const speaker = document.getElementById("speaker-select").value;
-  const url = speaker ? `/api/turns?speaker=${speaker}` : "/api/turns";
+  const url = speaker ? `${BASE}api/turns?speaker=${speaker}` : `${BASE}api/turns`;
   const resp = await fetch(url);
   const data = await resp.json();
   state.turns = data.turns;
@@ -168,22 +188,270 @@ async function loadTurns() {
 
 // --- UI Rendering ---
 
-function renderDevices(active) {
-  const el = document.getElementById("device-list");
-  const labels = {
-    blackhole_2ch: "BlackHole 2ch (to browser)",
-    speakers: "Speakers (monitoring)",
-    blackhole_16ch: "BlackHole 16ch (agent capture)",
-  };
-  let html = "";
-  for (const [key, idx] of Object.entries(active)) {
-    const label = labels[key] || key;
-    const status = idx != null ? `Device #${idx}` : "Not found";
-    const color = idx != null ? "#4caf50" : "#f44336";
-    html += `<div><span style="color:${color}">\u25cf</span> ${label}: ${status}</div>`;
+// Browser-side device picker \u2014 populated from
+// navigator.mediaDevices.enumerateDevices(). Three slots:
+//   - output  \u2192 primary playback target (BlackHole 2ch in Mode A,
+//               real speakers in Mode B).
+//   - monitor \u2192 optional second output, useful in Mode A so the
+//               operator can hear what the agent is hearing.
+//   - input   \u2192 capture device (BlackHole 16ch in Mode A,
+//               built-in mic in Mode B).
+const DEVICE_SLOTS = [
+  {
+    key: "output",
+    label: "Output 1 (to agent under test)",
+    hint: "Where turn audio plays. Mode A: BlackHole 2ch. Mode B: real speakers.",
+    direction: "output",
+  },
+  {
+    key: "monitor",
+    label: "Output 2 (to hear locally)",
+    hint: "Optional parallel output so you can hear what's playing. Leave blank to skip.",
+    direction: "output",
+    optional: true,
+  },
+  {
+    key: "input",
+    label: "Input (audio from agent under test)",
+    hint: "Where the page listens for the agent. Mode A: BlackHole 16ch. Mode B: your built-in mic.",
+    direction: "input",
+  },
+];
+
+const DEVICES_STORAGE_KEY = "benchmark.deviceIds.v2";
+
+// Storage shape: { output: {id, pinned}, monitor: {...}, input: {...} }
+// pinned=true means the user explicitly picked this slot (or cleared it),
+// so auto-detect should NOT overwrite on the next load. pinned=false (or
+// the slot missing entirely) means we've never been told otherwise and
+// are free to auto-detect.
+function loadDeviceSelections() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DEVICES_STORAGE_KEY) || "{}");
+    const out = {};
+    for (const k of ["output", "monitor", "input"]) {
+      const v = raw[k];
+      if (typeof v === "string") out[k] = { id: v, pinned: true };
+      else if (v && typeof v === "object") out[k] = { id: v.id || "", pinned: !!v.pinned };
+      else out[k] = { id: "", pinned: false };
+    }
+    return out;
+  } catch {
+    return { output: { id: "", pinned: false }, monitor: { id: "", pinned: false }, input: { id: "", pinned: false } };
   }
-  el.innerHTML = html;
 }
+
+function persistDeviceSelections() {
+  localStorage.setItem(
+    DEVICES_STORAGE_KEY,
+    JSON.stringify(state.browserDevices || {}),
+  );
+}
+
+// Auto-detect sensible defaults for any slot whose user has not pinned
+// a choice. Mode A pattern: BlackHole 2ch → output, BlackHole 16ch →
+// input, system default → monitor.
+function autoFillDevices() {
+  const cat = state.deviceCatalog;
+  if (!cat) return;
+  const dev = state.browserDevices || {};
+  const findOutput = (rx) =>
+    cat.outputs.find((d) => d.label && rx.test(d.label))?.deviceId;
+  const findInput = (rx) =>
+    cat.inputs.find((d) => d.label && rx.test(d.label))?.deviceId;
+  const defaultOutput = () =>
+    cat.outputs.find((d) => d.deviceId === "default")?.deviceId ||
+    cat.outputs[0]?.deviceId;
+  const defaultInput = () =>
+    cat.inputs.find((d) => d.deviceId === "default")?.deviceId ||
+    cat.inputs[0]?.deviceId;
+
+  let changed = false;
+  if (!dev.output.pinned && !dev.output.id) {
+    const id = findOutput(/blackhole\s*2ch/i);
+    if (id) { dev.output.id = id; changed = true; }
+  }
+  if (!dev.input.pinned && !dev.input.id) {
+    const id = findInput(/blackhole\s*16ch/i) || defaultInput();
+    if (id) { dev.input.id = id; changed = true; }
+  }
+  if (!dev.monitor.pinned && !dev.monitor.id) {
+    // Prefer a non-BlackHole output — that's almost certainly what the
+    // operator wants to monitor through. Fall back to system default.
+    const real = cat.outputs.find(
+      (d) => d.label && !/blackhole/i.test(d.label) && d.deviceId !== "default",
+    );
+    const id = real?.deviceId || defaultOutput();
+    if (id) { dev.monitor.id = id; changed = true; }
+  }
+  state.browserDevices = dev;
+  if (changed) persistDeviceSelections();
+}
+
+function renderDevices() {
+  const el = document.getElementById("device-list");
+  const cat = state.deviceCatalog;
+  if (!cat) {
+    el.innerHTML =
+      '<div class="device-note">Click <em>Grant mic access</em> to populate device labels.' +
+      ' <button class="btn" id="btn-grant" onclick="grantMicAccess()">Grant mic access</button>' +
+      "</div>";
+    return;
+  }
+  const browserState = state.browserDevices || {};
+  const supportsSink = typeof state.canSelectOutput === "boolean" ? state.canSelectOutput : true;
+
+  let html = '<div class="device-grid">';
+  if (!supportsSink) {
+    html +=
+      '<div class="device-note device-warn">\u26a0 Your browser does not support choosing the output device (HTMLMediaElement.setSinkId). ' +
+      "Playback will go to the system default. Use Chrome / Edge / Opera for output-device selection.</div>";
+  }
+  for (const slot of DEVICE_SLOTS) {
+    const isOutput = slot.direction === "output";
+    const opts = isOutput ? cat.outputs : cat.inputs;
+    const entry = browserState[slot.key] || { id: "", pinned: false };
+    const current = entry.id;
+    const found = !!current;
+    const dotColor = found ? "#4caf50" : slot.optional ? "#999" : "#f44336";
+    const autoTag = found && !entry.pinned
+      ? '<span class="device-auto-tag" title="Auto-picked. Change the dropdown to pin a manual choice.">auto</span>'
+      : "";
+
+    html += `
+      <div class="device-row">
+        <div class="device-label">
+          <span class="device-dot" style="color:${dotColor}">\u25cf</span>
+          <span><strong>${slot.label}</strong></span>
+          ${autoTag}
+        </div>
+        <select class="device-select" data-slot="${slot.key}" onchange="setBrowserDevice('${slot.key}', this.value)">
+          <option value="">\u2014 Not set \u2014</option>`;
+    for (const d of opts) {
+      const selected = d.deviceId === current ? " selected" : "";
+      const label =
+        escapeHtml(d.label || `(${isOutput ? "output" : "input"} ${d.deviceId.slice(0, 6)})`);
+      html += `<option value="${d.deviceId}"${selected}>${label}</option>`;
+    }
+    html += `
+        </select>
+        <div class="device-hint">${slot.hint}</div>`;
+    if (slot.key === "input") {
+      // Live RMS meter so the operator can see immediately whether
+      // anything is reaching the chosen input. Threshold marker = the
+      // VAD trigger (0.01 RMS).
+      html += `
+        <div class="meter-wrap" aria-hidden="true">
+          <div class="meter-bar"><div class="meter-fill" id="meter-fill"></div>
+            <div class="meter-threshold" title="VAD speech threshold"></div>
+          </div>
+          <div class="meter-readout"><span id="meter-rms">\u2014</span> <span class="meter-label" id="meter-state"></span></div>
+        </div>`;
+    }
+    html += `</div>`;
+  }
+  html += "</div>";
+  el.innerHTML = html;
+  // (Re)start the live input meter for whatever the input slot points at.
+  syncInputMeter();
+}
+
+// --- Live input meter ---
+
+const METER_MAX_RMS = 0.2; // 0.2 RMS \u2248 moderately loud speech
+let _meterHandle = null;
+let _meterDeviceId = null;
+
+async function syncInputMeter() {
+  const dev = state.browserDevices || {};
+  const targetId = dev.input?.id || "";
+  if (!targetId) {
+    if (_meterHandle) { _meterHandle.stop(); _meterHandle = null; _meterDeviceId = null; }
+    paintMeter(null);
+    return;
+  }
+  if (_meterHandle && _meterDeviceId === targetId) return;
+  if (_meterHandle) { _meterHandle.stop(); _meterHandle = null; }
+  _meterDeviceId = targetId;
+  try {
+    _meterHandle = await window.benchHarness.startMeter(targetId, paintMeter);
+  } catch (e) {
+    console.warn("startMeter failed:", e);
+    paintMeter({ rms: null, error: String(e?.message || e) });
+  }
+}
+
+function paintMeter(level) {
+  const fill = document.getElementById("meter-fill");
+  const readout = document.getElementById("meter-rms");
+  const stateEl = document.getElementById("meter-state");
+  if (!fill || !readout) return;
+  if (!level) {
+    fill.style.width = "0%";
+    readout.textContent = "\u2014";
+    if (stateEl) stateEl.textContent = "";
+    return;
+  }
+  if (level.error) {
+    fill.style.width = "0%";
+    readout.textContent = "error";
+    if (stateEl) stateEl.textContent = level.error;
+    return;
+  }
+  const pct = Math.min(100, (level.rms / METER_MAX_RMS) * 100);
+  fill.style.width = `${pct}%`;
+  fill.classList.toggle("over-threshold", level.rms >= 0.01);
+  readout.textContent = `RMS ${level.rms.toFixed(4)}`;
+  if (stateEl) {
+    if (level.rms >= 0.01) stateEl.textContent = "(speech)";
+    else if (level.rms >= 0.001) stateEl.textContent = "(quiet)";
+    else stateEl.textContent = "(silent)";
+  }
+}
+
+async function grantMicAccess() {
+  const ok = await window.benchHarness.primePermission();
+  if (!ok) return;
+  await refreshDeviceCatalog();
+}
+
+async function refreshDeviceCatalog() {
+  state.canSelectOutput = window.benchHarness.canSelectOutputDevice();
+  try {
+    state.deviceCatalog = await window.benchHarness.listDevices();
+  } catch (e) {
+    console.warn("listDevices failed:", e);
+    return;
+  }
+  // Drop stale IDs that no longer exist (devices unplugged etc), but
+  // keep pinned=true so when the device comes back it doesn't get
+  // overridden by auto-detect.
+  const valid = new Set([
+    ...state.deviceCatalog.outputs.map((d) => d.deviceId),
+    ...state.deviceCatalog.inputs.map((d) => d.deviceId),
+  ]);
+  let changed = false;
+  for (const k of Object.keys(state.browserDevices || {})) {
+    const e = state.browserDevices[k];
+    if (e && e.id && !valid.has(e.id)) {
+      e.id = "";
+      changed = true;
+    }
+  }
+  // Fill any unpinned slot with a sensible auto-pick now that we have labels.
+  autoFillDevices();
+  if (changed) persistDeviceSelections();
+  renderDevices();
+}
+
+function setBrowserDevice(slot, deviceId) {
+  state.browserDevices = state.browserDevices || {};
+  state.browserDevices[slot] = { id: deviceId || "", pinned: true };
+  persistDeviceSelections();
+  renderDevices();
+}
+window.grantMicAccess = grantMicAccess;
+window.setBrowserDevice = setBrowserDevice;
 
 function renderTurnTable() {
   const tbody = document.getElementById("turn-table-body");
@@ -251,11 +519,15 @@ function setTurnTtfa(turnIdx, ttfa) {
   const el = document.getElementById(`ttfa-${turnIdx}`);
   if (!el) return;
 
-  const ms = Math.round(ttfa);
-  if (ms < 0) {
-    el.innerHTML = `<span class="ttfa-negative">barge-in</span>`;
+  // Defensive: a negative TTFA only happens on barge-in. We've decided
+  // those rows leave the cell blank and don't enter the avg. Even if a
+  // stale WS event sneaks through, refuse the paint here.
+  if (ttfa == null || ttfa < 0) {
+    el.textContent = "—";
     return;
   }
+
+  const ms = Math.round(ttfa);
   let cls;
   if (ms > 1500) {
     cls = "ttfa-red";
@@ -298,7 +570,7 @@ function updateSummaryRow() {
   const el = document.getElementById("ttfa-summary");
   if (!el) return;
   const ttfas = Object.values(state.results)
-    .filter(r => r.ttfa_ms != null && r.ttfa_ms >= 0)
+    .filter(r => !r.barge_in && r.ttfa_ms != null && r.ttfa_ms >= 0)
     .map(r => r.ttfa_ms);
   if (ttfas.length === 0) {
     el.innerHTML = "—";
@@ -337,24 +609,225 @@ function updateControls() {
 
 // --- Actions ---
 
-function runAll() {
-  const speaker = document.getElementById("speaker-select").value;
-  send({
-    action: "run_all",
-    speaker: speaker !== "" ? parseInt(speaker) : null,
-  });
+function isBrowserMode() {
+  // Toggle has been removed — browser mode is the only mode now. The
+  // server-mode branches in stopRun/resetRun/etc are kept for the
+  // (rare) case the harness is run standalone without the new UI.
+  return true;
+}
+
+function getCurrentSourceKey() {
+  return document.getElementById("source-select").value;
+}
+
+// --- bench logger ---
+// Every event is tagged with the current runId so that overlapping
+// callbacks from a stopped/orphaned run are obvious in the console.
+function benchLog(...args) {
+  const tag = state.runId != null ? `bench#${state.runId}` : "bench";
+  console.log(`[${tag}]`, ...args);
+}
+
+function newRunId() {
+  state.runId = (state.runId || 0) + 1;
+  return state.runId;
+}
+
+// Abort the current run cleanly. The signal is plumbed through
+// runBrowserTurnFlow → runBrowserTurn so the poll loop bails out
+// instead of dragging on while the next run starts.
+function abortCurrentRun(reason) {
+  if (state.abortCtl) {
+    benchLog("abort:", reason);
+    state.abortCtl.abort(reason);
+    state.abortCtl = null;
+  }
+}
+
+async function runAll() {
+  if (!isBrowserMode()) {
+    const speaker = document.getElementById("speaker-select").value;
+    send({
+      action: "run_all",
+      speaker: speaker !== "" ? parseInt(speaker) : null,
+    });
+    return;
+  }
+  if (!ensureDevicesConfigured()) return;
+  // Cancel any in-flight run before starting a new one.
+  abortCurrentRun("new run_all");
+  const runId = newRunId();
+  const abortCtl = new AbortController();
+  state.abortCtl = abortCtl;
+  state.batchRunning = true;
+  state.running = true;
+  state.stopRequested = false;
+  state.results = {};
+  resetTableStatuses();
+  renderSummary({});
+  updateSummaryRow();
+  updateControls();
+  const turns = state.turns.slice();
+  benchLog("run_all start —", turns.length, "turns");
+  for (const turn of turns) {
+    if (abortCtl.signal.aborted) {
+      benchLog("run_all aborted before turn", turn.turn);
+      break;
+    }
+    await runBrowserTurnFlow(turn, abortCtl.signal, runId);
+    if (abortCtl.signal.aborted) break;
+    // small inter-turn breather (matches Python harness default 0.5s)
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  // If this run wasn't superseded by a newer one, clear shared state.
+  if (state.abortCtl === abortCtl) state.abortCtl = null;
+  state.batchRunning = false;
+  state.running = false;
+  state.currentTurn = null;
+  updateControls();
+  benchLog("run_all done");
 }
 
 function stopRun() {
+  if (isBrowserMode()) {
+    benchLog("stopRun pressed");
+    abortCurrentRun("stop");
+    state.stopRequested = true;
+    state.running = false;
+    state.batchRunning = false;
+    state.currentTurn = null;
+    updateControls();
+    clearHighlight();
+    return;
+  }
   send({ action: "stop" });
 }
 
 function resetRun() {
+  if (isBrowserMode()) {
+    benchLog("resetRun pressed");
+    abortCurrentRun("reset");
+    state.results = {};
+    state.running = false;
+    state.batchRunning = false;
+    state.currentTurn = null;
+    updateControls();
+    renderSummary({});
+    resetTableStatuses();
+    updateSummaryRow();
+    return;
+  }
   send({ action: "reset" });
 }
 
-function playSingle(turnIdx) {
-  send({ action: "run_single", turn: turnIdx });
+async function playSingle(turnIdx) {
+  if (!isBrowserMode()) {
+    send({ action: "run_single", turn: turnIdx });
+    return;
+  }
+  if (!ensureDevicesConfigured()) return;
+  const turn = state.turns.find((t) => t.turn === turnIdx);
+  if (!turn) return;
+  abortCurrentRun("new playSingle");
+  const runId = newRunId();
+  const abortCtl = new AbortController();
+  state.abortCtl = abortCtl;
+  state.running = true;
+  updateControls();
+  benchLog("playSingle turn", turnIdx);
+  await runBrowserTurnFlow(turn, abortCtl.signal, runId);
+  if (state.abortCtl === abortCtl) state.abortCtl = null;
+  state.running = false;
+  state.currentTurn = null;
+  updateControls();
+}
+
+function ensureDevicesConfigured() {
+  const dev = state.browserDevices || {};
+  if (!dev.output?.id || !dev.input?.id) {
+    alert(
+      'Please set the "Playback" output and "Capture" input under Audio Devices first.',
+    );
+    return false;
+  }
+  return true;
+}
+
+// Flatten the persisted {id, pinned} structure into plain device-IDs
+// for the harness module.
+function deviceIdsForHarness() {
+  const d = state.browserDevices || {};
+  return {
+    output: d.output?.id || "",
+    monitor: d.monitor?.id || "",
+    input: d.input?.id || "",
+  };
+}
+
+// Wraps a single turn in the local UI lifecycle + the browser harness
+// runner + result submission to the server. signal/runId let us identify
+// and abort orphan runs after a Stop or Reset.
+async function runBrowserTurnFlow(turn, signal, runId) {
+  state.currentTurn = turn.turn;
+  setTurnStatus(turn.turn, "playing");
+  highlightRow(turn.turn);
+  benchLog(`turn ${turn.turn} start (speaker ${turn.speaker})`);
+  const phaseHandler = (p, partial) => {
+    if (signal && signal.aborted) return;
+    benchLog(`turn ${turn.turn} phase=${p}`, partial?.ttfa_ms != null ? `ttfa=${partial.ttfa_ms.toFixed(0)}ms` : "");
+    if (p === "playing") {
+      setTurnStatus(turn.turn, "playing");
+    } else if (p === "response_detected") {
+      setTurnStatus(turn.turn, "listening");
+      if (partial && partial.ttfa_ms != null) {
+        setTurnTtfa(turn.turn, partial.ttfa_ms);
+      }
+    } else if (p === "barge_in") {
+      setTurnStatus(turn.turn, "barge_in");
+    }
+  };
+  let result;
+  try {
+    result = await window.benchHarness.runBrowserTurn(
+      turn,
+      getCurrentSourceKey(),
+      deviceIdsForHarness(),
+      BASE,
+      phaseHandler,
+      signal,
+    );
+  } catch (e) {
+    if (e && (e.name === "AbortError" || signal?.aborted)) {
+      benchLog(`turn ${turn.turn} aborted`);
+      return;
+    }
+    console.error(`[bench] turn ${turn.turn} failed:`, e);
+    setTurnStatus(turn.turn, "skipped");
+    return;
+  }
+  // Don't write into a fresher run's state if Stop/Reset fired during
+  // our await chain.
+  if (signal && signal.aborted) {
+    benchLog(`turn ${turn.turn} finished after abort — discarding result`);
+    return;
+  }
+  if (runId != null && runId !== state.runId) {
+    benchLog(`turn ${turn.turn} finished but runId mismatch (was ${runId}, now ${state.runId}) — discarding`);
+    return;
+  }
+  state.results[turn.turn] = result;
+  setTurnStatus(turn.turn, result.status);
+  if (!result.barge_in && result.ttfa_ms != null) {
+    setTurnTtfa(turn.turn, result.ttfa_ms);
+  }
+  benchLog(`turn ${turn.turn} done — status=${result.status} ttfa=${result.ttfa_ms?.toFixed?.(0) ?? "—"} barge=${result.barge_in}`);
+  // POST to server so it goes into the canonical results store.
+  await window.benchHarness.submitResult(
+    { ...result, speaker: turn.speaker },
+    BASE,
+  );
+  updateSummaryRow();
+  clearHighlight();
 }
 
 // --- Util ---
@@ -372,6 +845,80 @@ document.getElementById("btn-stop").addEventListener("click", stopRun);
 document.getElementById("btn-reset").addEventListener("click", resetRun);
 document.getElementById("speaker-select").addEventListener("change", loadTurns);
 document.getElementById("source-select").addEventListener("change", changeSource);
+
+// --- Setup modal ---
+const setupModal = document.getElementById("setup-modal");
+document.getElementById("btn-setup").addEventListener("click", () => {
+  setupModal.classList.remove("hidden");
+  // Lazy-augment any <pre><code> blocks with a Copy button. Cheap to
+  // re-run; we tag once so it isn't redone.
+  setupModal.querySelectorAll("pre").forEach((pre) => {
+    if (pre.querySelector(".copy-btn")) return;
+    const code = pre.querySelector("code");
+    if (!code) return;
+    const btn = document.createElement("button");
+    btn.className = "copy-btn";
+    btn.type = "button";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(code.innerText);
+        const prev = btn.textContent;
+        btn.textContent = "Copied";
+        btn.classList.add("copied");
+        setTimeout(() => {
+          btn.textContent = prev;
+          btn.classList.remove("copied");
+        }, 1200);
+      } catch (e) {
+        console.warn("clipboard write failed:", e);
+        btn.textContent = "Failed";
+        setTimeout(() => (btn.textContent = "Copy"), 1200);
+      }
+    });
+    pre.appendChild(btn);
+  });
+});
+setupModal.querySelectorAll("[data-close-modal]").forEach((el) => {
+  el.addEventListener("click", () => setupModal.classList.add("hidden"));
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") setupModal.classList.add("hidden");
+});
+
+// --- Browser-mode bootstrap ---
+state.browserDevices = loadDeviceSelections();
+state.canSelectOutput = true; // updated once the harness module loads
+// React to hot-plug events.
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+  navigator.mediaDevices.addEventListener("devicechange", () => {
+    if (state.deviceCatalog) refreshDeviceCatalog();
+  });
+}
+
+// Dynamically import the harness module and expose it for runners +
+// device-picker code. Falls back gracefully if the browser is too old.
+(async () => {
+  try {
+    const mod = await import(`${BASE}static/browser_harness.js`);
+    window.benchHarness = mod;
+    state.canSelectOutput = mod.canSelectOutputDevice();
+    // If permission was granted in an earlier session, we can list
+    // immediately. enumerateDevices() succeeds but labels are empty
+    // until permission is primed once.
+    const list = await mod.listDevices();
+    const haveLabels = [...list.inputs, ...list.outputs].some((d) => d.label);
+    if (haveLabels) {
+      state.deviceCatalog = list;
+      autoFillDevices();
+      renderDevices();
+    } else {
+      renderDevices(); // shows the Grant button
+    }
+  } catch (e) {
+    console.error("benchHarness import failed:", e);
+  }
+})();
 
 connect();
 loadSources();

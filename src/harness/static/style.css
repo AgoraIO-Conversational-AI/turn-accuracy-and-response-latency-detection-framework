@@ -309,3 +309,278 @@ tbody tr.barge-in {
   color: #a0a0c0;
   font-weight: 600;
 }
+
+/* Header Setup button */
+header { gap: 12px; }
+header #btn-setup { margin-left: auto; }
+
+/* Audition button (in-browser preview) */
+.btn-audition {
+  background: transparent;
+  border: 1px solid #3a3a5a;
+  color: #e0e0e0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-right: 4px;
+}
+.btn-audition:hover { background: #2a2a4a; }
+
+/* Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal.hidden { display: none; }
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+}
+.modal-panel {
+  position: relative;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  width: min(720px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #2a2a4a;
+}
+.modal-head h2 { margin: 0; color: #e0e0e0; }
+.modal-close {
+  background: transparent;
+  border: 0;
+  color: #a0a0c0;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.modal-body h3 {
+  font-size: 1rem;
+  color: #e0e0e0;
+  margin: 14px 0 6px;
+}
+.modal-body h3:first-child { margin-top: 0; }
+.modal-body h4 {
+  font-size: 0.92rem;
+  color: #c0c0e0;
+  margin: 10px 0 4px;
+}
+.modal-body p { margin: 6px 0; }
+.modal-body ul,
+.modal-body ol {
+  margin: 6px 0 8px 22px;
+}
+.modal-body li { margin: 3px 0; }
+.modal-body code {
+  background: #2a2a4a;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.85rem;
+}
+.modal-body pre {
+  background: #11111e;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  margin: 4px 0 8px;
+}
+.modal-body pre code { background: transparent; padding: 0; }
+
+/* Audio device picker — one row per slot */
+.device-grid {
+  display: grid;
+  gap: 14px;
+  padding: 8px 0 4px;
+}
+.device-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+.device-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+.device-dot {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.device-select {
+  background: #11111e;
+  color: #e0e0e0;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  width: 100%;
+}
+.device-select:focus { outline: 1px solid #4a6ee0; border-color: #4a6ee0; }
+.device-hint {
+  font-size: 0.78rem;
+  color: #8888a0;
+  line-height: 1.4;
+}
+
+/* Browser-mode toggle */
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 16px;
+  font-size: 0.85rem;
+  color: #c0c0e0;
+  cursor: pointer;
+}
+.mode-toggle input { cursor: pointer; }
+
+/* Device-picker notes / warning */
+.device-note {
+  font-size: 0.85rem;
+  color: #a0a0c0;
+  padding: 8px 10px;
+  background: #11111e;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+.device-note .btn {
+  margin-left: 8px;
+  font-size: 0.85rem;
+}
+.device-warn {
+  border-color: #6a4a1c;
+  background: #2a1a08;
+  color: #f0c060;
+}
+
+/* Auto-picked tag on a device slot */
+.device-auto-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #2a2a4a;
+  color: #a0c0e0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Live input amplitude meter */
+.meter-wrap {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #a0a0c0;
+}
+.meter-bar {
+  position: relative;
+  height: 10px;
+  background: #11111e;
+  border: 1px solid #2a2a4a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #2d6cdf, #4a90ff);
+  transition: width 60ms linear;
+}
+.meter-fill.over-threshold {
+  background: linear-gradient(90deg, #2e7d32, #5cc26b);
+}
+.meter-threshold {
+  /* VAD threshold at RMS 0.01, scaled against METER_MAX_RMS=0.2 → 5% */
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: 5%;
+  width: 1px;
+  background: #f0c060;
+}
+.meter-readout {
+  margin-top: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+.meter-label { color: #8888a0; }
+
+/* Copy button on modal code blocks */
+.modal-body pre { position: relative; }
+.copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #2a2a4a;
+  color: #e0e0e0;
+  border: 1px solid #3a3a5a;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.copy-btn:hover { opacity: 1; }
+.copy-btn.copied { background: #2e7d32; border-color: #4caf50; opacity: 1; }
+
+/* Streamlined setup steps */
+.modal-body ol.setup-steps {
+  margin: 12px 0 10px 22px;
+  display: grid;
+  gap: 12px;
+}
+.modal-body ol.setup-steps > li {
+  padding-left: 4px;
+}
+.modal-body ol.setup-steps > li > strong:first-child {
+  display: inline-block;
+  margin-right: 4px;
+}
+.modal-body p.setup-note {
+  background: #11111e;
+  border-left: 3px solid #4a6ee0;
+  padding: 8px 12px;
+  margin: 10px 0 4px;
+  font-size: 0.85rem;
+  color: #c0c0e0;
+}
+
+/* Why / how subnotes inside each setup step */
+.modal-body ol.setup-steps p.step-why,
+.modal-body ol.setup-steps p.step-how {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: #a8a8c0;
+  line-height: 1.5;
+}
+.modal-body ol.setup-steps p.step-how em:first-child,
+.modal-body ol.setup-steps p.step-why em:first-child {
+  color: #c0c0e0;
+  font-style: normal;
+  font-weight: 600;
+}
