@@ -278,6 +278,16 @@ tbody tr.barge-in {
   font-size: 0.8rem;
 }
 
+.turn-num {
+  color: #8aa0ff;
+  text-decoration: none;
+  cursor: pointer;
+}
+.turn-num:hover {
+  text-decoration: underline;
+  color: #c5d1ff;
+}
+
 .btn-play-single:hover {
   background: #3a3a5e;
   color: #e0e0e0;

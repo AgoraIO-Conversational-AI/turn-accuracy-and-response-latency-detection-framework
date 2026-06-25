@@ -478,7 +478,7 @@ function renderTurnTable() {
 
     html += `
       <tr id="turn-row-${turn.turn}" data-turn="${turn.turn}">
-        <td>${turn.turn}</td>
+        <td><a class="turn-num" title="Preview this turn's audio locally (no test run, no capture, no measurement)" onclick="previewTurn(${turn.turn});return false;" href="#">${turn.turn}</a></td>
         <td>S${turn.speaker}</td>
         <td class="type-cell">${typeHtml}</td>
         <td class="text-cell" title="${escapeHtml(turn.text)}">${escapeHtml(turn.text)}</td>
@@ -777,6 +777,52 @@ async function prefetchAllWavs(turns) {
     benchLog(`prefetched ${turns.length} WAVs in ${dt}ms (background)`);
   });
 }
+
+// Standalone preview — click the turn number in the leftmost column to
+// play just that turn's WAV through the Playback output device. No
+// capture, no test sequence, no measurement; lets the operator hear
+// any turn in isolation. Clicking another number stops the prior one.
+let _previewAudio = null;
+async function previewTurn(turnIdx) {
+  const source = getCurrentSourceKey();
+  if (!source) {
+    benchLog("preview: no source selected");
+    return;
+  }
+  const turn = (state.turns || []).find((t) => t.turn === turnIdx);
+  if (!turn) return;
+
+  if (_previewAudio) {
+    try { _previewAudio.pause(); } catch {}
+    try { _previewAudio.src = ""; _previewAudio.load(); } catch {}
+    _previewAudio = null;
+  }
+
+  const url = `${BASE}api/wav/${source}/${turn.speaker}/${turn.turn}`;
+  const el = new Audio();
+  el.src = url;
+  el.preload = "auto";
+
+  const sinkId = state.browserDevices?.output?.id || "";
+  if (sinkId && el.setSinkId) {
+    try { await el.setSinkId(sinkId); }
+    catch (e) { console.warn("preview setSinkId failed:", e); }
+  }
+
+  _previewAudio = el;
+  const clear = () => { if (_previewAudio === el) _previewAudio = null; };
+  el.addEventListener("ended", clear);
+  el.addEventListener("error", clear);
+
+  try {
+    await el.play();
+    benchLog(`preview turn ${turnIdx}`);
+  } catch (e) {
+    benchLog(`preview turn ${turnIdx} failed: ${e.message}`);
+    clear();
+  }
+}
+window.previewTurn = previewTurn;
 
 // "Start" per turn = prime the agent with turn 0 (the opener that
 // explains the test rules to the agent), then resume from this turn

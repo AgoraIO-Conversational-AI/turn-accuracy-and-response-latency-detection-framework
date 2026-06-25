@@ -512,6 +512,14 @@ SENTENCES_BENCHMARK1 = [
         "display_text": "I mean I'm not entirely sure about that, it's hard to say.",
         "expected_complete": True,
     },
+    # 20 — normal (kept from original turn 9; closes the session)
+    {
+        "voice": 4,
+        "category": "normal",
+        "tts_text": "Thanks for your help, I appreciate it.",
+        "display_text": "Thanks for your help, I appreciate it.",
+        "expected_complete": True,
+    },
 ]
 
 API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
