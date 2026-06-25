@@ -327,6 +327,193 @@ HESITATION2_SENTENCES = [
     },
 ]
 
+# ── Benchmark 1 corpus ────────────────────────────────────────────────────
+# 20-turn corpus mixing the existing TTS_Turns keepers with a billing-call
+# scenario at the top. All non-zero gaps target 800-1500ms and are
+# bit-perfectly zeroed during post-processing (no comfort noise), so any
+# detected silence in the WAV is a true zero-amplitude region.
+#
+# Layout:
+#   0 — opener / instructions (kept from original corpus)
+#   1-6 — billing-call scenario (six new utterances spread across speakers)
+#   7-19 — keepers from the original corpus (long-gap pause/hesitation +
+#           a few normal/ambiguous turns)
+SENTENCES_BENCHMARK1 = [
+    # 0 — normal (instruction opener)
+    {
+        "voice": 2,
+        "category": "normal",
+        "tts_text": "I'm going to say some random things to see how you respond. Please keep your responses to under ten words.",
+        "display_text": "I'm going to say some random things to see how you respond. Please keep your responses to under ten words.",
+        "expected_complete": True,
+    },
+    # 1 — pause 900ms (billing amount)
+    {
+        "voice": 0,
+        "category": "pause",
+        "tts_text": "Yeah, I got a bill for like [pause] [pause] [short pause] six hundred and eighty dollars and I can't pay that all today.",
+        "display_text": "Yeah, I got a bill for like... six hundred and eighty dollars and I can't pay that all today.",
+        "expected_complete": False,
+        "target_gap_ms": 900,
+    },
+    # 2 — hesitation 1000ms (name + date of birth)
+    {
+        "voice": 1,
+        "category": "hesitation",
+        "tts_text": "Michael Turner, [hesitation] [hesitation] [pause] um, April fourteenth, nineteen eighty five.",
+        "display_text": "Michael Turner... um, April 14, 1985.",
+        "expected_complete": False,
+        "target_gap_ms": 1000,
+    },
+    # 3 — normal (short complete answer)
+    {
+        "voice": 2,
+        "category": "normal",
+        "tts_text": "Payment plan.",
+        "display_text": "Payment plan.",
+        "expected_complete": True,
+    },
+    # 4 — hesitation2 900ms (prosody-only)
+    {
+        "voice": 3,
+        "category": "hesitation2",
+        "tts_text": "Ask them [hesitation] [hesitation] [pause] why insurance didn't cover it.",
+        "display_text": "Ask them [hesitation] [hesitation] [pause] why insurance didn't cover it.",
+        "expected_complete": False,
+        "target_gap_ms": 900,
+    },
+    # 5 — normal (decision confirmation)
+    {
+        "voice": 4,
+        "category": "normal",
+        "tts_text": "That's fine, just do the payment plan.",
+        "display_text": "That's fine, just do the payment plan.",
+        "expected_complete": True,
+    },
+    # 6 — ambiguous (one-word reply)
+    {
+        "voice": 0,
+        "category": "ambiguous",
+        "tts_text": "Yes.",
+        "display_text": "Yes.",
+        "expected_complete": True,
+    },
+    # 7 — hesitation 800ms (kept from original turn 2)
+    {
+        "voice": 2,
+        "category": "hesitation",
+        "tts_text": "I need to update my [hesitation] [hesitation] [pause] um, my billing address.",
+        "display_text": "I need to update my... um, my billing address.",
+        "expected_complete": False,
+        "target_gap_ms": 800,
+    },
+    # 8 — ambiguous (kept from original turn 4)
+    {
+        "voice": 2,
+        "category": "ambiguous",
+        "tts_text": "That's not really what I was looking for but.",
+        "display_text": "That's not really what I was looking for but.",
+        "expected_complete": True,
+    },
+    # 9 — normal (kept from original turn 5)
+    {
+        "voice": 0,
+        "category": "normal",
+        "tts_text": "I'd like to book a table for two at seven o'clock tonight please.",
+        "display_text": "I'd like to book a table for two at seven o'clock tonight please.",
+        "expected_complete": True,
+    },
+    # 10 — pause 1000ms (kept from original turn 6)
+    {
+        "voice": 3,
+        "category": "pause",
+        "tts_text": "My account number starts with [pause] [pause] [short pause] eight six three.",
+        "display_text": "My account number starts with [pause] eight six three.",
+        "expected_complete": False,
+        "target_gap_ms": 1000,
+    },
+    # 11 — hesitation2 800ms (kept from original turn 7)
+    {
+        "voice": 1,
+        "category": "hesitation2",
+        "tts_text": "The last time I checked it was [hesitation] [hesitation] [pause] somewhere around forty five dollars.",
+        "display_text": "The last time I checked it was [hesitation] [hesitation] [pause] somewhere around forty five dollars.",
+        "expected_complete": False,
+        "target_gap_ms": 800,
+    },
+    # 12 — hesitation2 1000ms (kept from original turn 11)
+    {
+        "voice": 2,
+        "category": "hesitation2",
+        "tts_text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
+        "display_text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
+        "expected_complete": False,
+        "target_gap_ms": 1000,
+    },
+    # 13 — hesitation 1200ms (kept from original turn 15)
+    {
+        "voice": 1,
+        "category": "hesitation",
+        "tts_text": "We could also try [hesitation] [hesitation] [pause] yeah, the other location might work better.",
+        "display_text": "We could also try... yeah, the other location might work better.",
+        "expected_complete": False,
+        "target_gap_ms": 1200,
+    },
+    # 14 — hesitation2 1200ms (kept from original turn 16)
+    {
+        "voice": 3,
+        "category": "hesitation2",
+        "tts_text": "I was going to renew but then the [hesitation] [hesitation] [pause] [pause] price went up by almost double.",
+        "display_text": "I was going to renew but then the [hesitation] [hesitation] [pause] [pause] price went up by almost double.",
+        "expected_complete": False,
+        "target_gap_ms": 1200,
+    },
+    # 15 — pause 800ms (kept from original turn 17)
+    {
+        "voice": 2,
+        "category": "pause",
+        "tts_text": "Could you transfer me to [pause] [pause] [short pause] the billing department please?",
+        "display_text": "Could you transfer me to [pause] the billing department please?",
+        "expected_complete": False,
+        "target_gap_ms": 800,
+    },
+    # 16 — pause 1200ms (kept from original turn 21)
+    {
+        "voice": 0,
+        "category": "pause",
+        "tts_text": "I'm calling because [pause] [pause] [short pause] I received the wrong item yesterday.",
+        "display_text": "I'm calling because [pause] I received the wrong item yesterday.",
+        "expected_complete": False,
+        "target_gap_ms": 1200,
+    },
+    # 17 — hesitation 1000ms (kept from original turn 22)
+    {
+        "voice": 3,
+        "category": "hesitation",
+        "tts_text": "The appointment was for [hesitation] [hesitation] [pause] uh, I think it was three thirty.",
+        "display_text": "The appointment was for... uh, I think it was three thirty.",
+        "expected_complete": False,
+        "target_gap_ms": 1000,
+    },
+    # 18 — hesitation2 1500ms (kept from original turn 23)
+    {
+        "voice": 4,
+        "category": "hesitation2",
+        "tts_text": "The problem is that my old [hesitation] [hesitation] [pause] [pause] subscription was cancelled without any notice.",
+        "display_text": "The problem is that my old [hesitation] [hesitation] [pause] [pause] subscription was cancelled without any notice.",
+        "expected_complete": False,
+        "target_gap_ms": 1500,
+    },
+    # 19 — ambiguous (kept from original turn 24)
+    {
+        "voice": 1,
+        "category": "ambiguous",
+        "tts_text": "I mean I'm not entirely sure about that, it's hard to say.",
+        "display_text": "I mean I'm not entirely sure about that, it's hard to say.",
+        "expected_complete": True,
+    },
+]
+
 API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 MODEL_ID = "eleven_v3"
 TARGET_SR = 48000
@@ -567,12 +754,106 @@ def _make_comfort_noise(sr: int, duration_samples: int, reference_data: np.ndarr
     return filtered
 
 
-def _set_gap_duration(wav_path: Path, target_ms: int) -> list[dict]:
+def _zero_out_gap(wav_path: Path, fade_ms: int = 3) -> dict | None:
+    """Bit-perfectly zero the largest silence gap, with a short fade at edges.
+
+    Reads the current gap, walks outward from its midpoint until each side
+    hits the first non-silent sample, then writes integer zeros in between.
+    A short linear fade just outside each edge avoids click artifacts.
+
+    Returns the {start_ms, end_ms, duration_ms} of the zeroed region (sample-
+    exact, not RMS-window-quantized), or None if no gap was found.
+    """
+    boundaries = _analyze_speech_boundaries(wav_path)
+    gaps = boundaries["silence_gaps"]
+    if not gaps:
+        return None
+
+    data, sr = sf.read(str(wav_path), dtype="float32")
+    if data.ndim > 1:
+        data = data[:, 0]
+
+    gap = max(gaps, key=lambda g: g["duration_ms"])
+    start = int(sr * gap["start_ms"] / 1000)
+    end = int(sr * gap["end_ms"] / 1000)
+    start = max(0, start)
+    end = min(len(data), end)
+    if end <= start:
+        return None
+
+    data[start:end] = 0.0
+
+    fade_samples = max(1, int(sr * fade_ms / 1000))
+    pre_start = max(0, start - fade_samples)
+    if start - pre_start > 0:
+        ramp = np.linspace(1.0, 0.0, start - pre_start).astype("float32")
+        data[pre_start:start] *= ramp
+    post_end = min(len(data), end + fade_samples)
+    if post_end - end > 0:
+        ramp = np.linspace(0.0, 1.0, post_end - end).astype("float32")
+        data[end:post_end] *= ramp
+
+    sf.write(str(wav_path), data, sr, subtype="PCM_16")
+
+    return {
+        "start_ms": int(round(start * 1000 / sr)),
+        "end_ms": int(round(end * 1000 / sr)),
+        "duration_ms": int(round((end - start) * 1000 / sr)),
+    }
+
+
+def _find_zero_run(wav_path: Path, min_ms: int = 50) -> dict | None:
+    """Find the longest contiguous run of bit-exact zero samples in the WAV.
+
+    Returns {start_ms, end_ms, duration_ms} of the longest zero run that is
+    at least min_ms long, or None if no such run exists.
+    """
+    data, sr = sf.read(str(wav_path), dtype="int16")
+    if data.ndim > 1:
+        data = data[:, 0]
+
+    is_zero = (data == 0).astype(np.int8)
+    if not is_zero.any():
+        return None
+
+    edges = np.diff(np.concatenate([[0], is_zero, [0]]))
+    starts = np.flatnonzero(edges == 1)
+    ends = np.flatnonzero(edges == -1)
+    if len(starts) == 0:
+        return None
+
+    min_samples = int(sr * min_ms / 1000)
+    best = None
+    best_len = 0
+    for s, e in zip(starts, ends):
+        if (e - s) >= min_samples and (e - s) > best_len:
+            best_len = e - s
+            best = (s, e)
+
+    if best is None:
+        return None
+
+    s, e = best
+    return {
+        "start_ms": int(round(s * 1000 / sr)),
+        "end_ms": int(round(e * 1000 / sr)),
+        "duration_ms": int(round((e - s) * 1000 / sr)),
+    }
+
+
+def _set_gap_duration(
+    wav_path: Path, target_ms: int, zero_fill: bool = False,
+) -> list[dict]:
     """Ensure exactly one silence gap at exactly target_ms duration.
 
     First enforces a single gap (removes extras), then trims or stretches
     it to hit the target precisely. Stretching inserts comfort noise instead
     of digital silence so the gap sounds like a natural room pause.
+
+    When zero_fill=True the gap is bit-perfectly zeroed after sizing, with a
+    short linear fade just outside each edge to avoid click artifacts. Used
+    by the Benchmark 1 corpus so amplitude-driven EOT detectors see a true
+    zero-amplitude window.
     Returns the final gap list.
     """
     _enforce_single_gap(wav_path)
@@ -583,6 +864,11 @@ def _set_gap_duration(wav_path: Path, target_ms: int) -> list[dict]:
 
     boundaries = _analyze_speech_boundaries(wav_path)
     gaps = boundaries["silence_gaps"]
+
+    def _fill(n_samples: int) -> np.ndarray:
+        if zero_fill:
+            return np.zeros(n_samples, dtype="float32")
+        return _make_comfort_noise(sr, n_samples, data)
 
     if not gaps:
         # no gap detected — force-insert one at the quietest point
@@ -598,15 +884,16 @@ def _set_gap_duration(wav_path: Path, target_ms: int) -> list[dict]:
                 min_rms = rms
                 min_pos = i
 
-        # insert comfort noise at that point
         target_samples = int(sr * target_ms / 1000)
-        comfort = _make_comfort_noise(sr, target_samples, data)
+        filler = _fill(target_samples)
         # apply brief crossfade
         fade = min(int(sr * 0.01), target_samples // 4)
         data[min_pos - fade:min_pos] *= np.linspace(1.0, 0.0, fade).astype("float32")
         data[min_pos:min_pos + fade] *= np.linspace(0.0, 1.0, fade).astype("float32")
-        data = np.concatenate([data[:min_pos], comfort, data[min_pos:]])
+        data = np.concatenate([data[:min_pos], filler, data[min_pos:]])
         sf.write(str(wav_path), data, sr, subtype="PCM_16")
+        if zero_fill:
+            _zero_out_gap(wav_path)
         return _analyze_speech_boundaries(wav_path)["silence_gaps"]
 
     gap = gaps[0]
@@ -614,6 +901,9 @@ def _set_gap_duration(wav_path: Path, target_ms: int) -> list[dict]:
     # RMS window quantization means measured gap can differ by up to RMS_WINDOW_MS
     # from actual. Accept gaps within one window of target to avoid endless re-adjust.
     if abs(current_ms - target_ms) <= RMS_WINDOW_MS:
+        if zero_fill:
+            _zero_out_gap(wav_path)
+            return _analyze_speech_boundaries(wav_path)["silence_gaps"]
         return gaps
 
     gap_start_sample = int(sr * gap["start_ms"] / 1000)
@@ -625,14 +915,16 @@ def _set_gap_duration(wav_path: Path, target_ms: int) -> list[dict]:
         trim_start = gap_start_sample + keep_samples
         data = np.concatenate([data[:trim_start], data[gap_end_sample:]])
     else:
-        # stretch: insert comfort noise at the midpoint
+        # stretch: insert filler at the midpoint
         extra_ms = target_ms - current_ms
         extra_samples = int(sr * extra_ms / 1000)
         gap_mid_sample = int(sr * (gap["start_ms"] + current_ms / 2) / 1000)
-        comfort = _make_comfort_noise(sr, extra_samples, data)
-        data = np.concatenate([data[:gap_mid_sample], comfort, data[gap_mid_sample:]])
+        filler = _fill(extra_samples)
+        data = np.concatenate([data[:gap_mid_sample], filler, data[gap_mid_sample:]])
 
     sf.write(str(wav_path), data, sr, subtype="PCM_16")
+    if zero_fill:
+        _zero_out_gap(wav_path)
 
     return _analyze_speech_boundaries(wav_path)["silence_gaps"]
 
@@ -1030,6 +1322,217 @@ def generate_hesitation2(
     return index
 
 
+BENCHMARK1_OUT_DIR = BASE_DIR / "out" / "Benchmark_1"
+
+
+def generate_benchmark1(
+    api_key: str,
+    force: bool = False,
+    skip_existing: bool = False,
+) -> dict:
+    """Generate the Benchmark 1 corpus (20 turns, bit-perfect zero gaps).
+
+    Gaps are sized to 800-1500ms per-turn targets, then bit-perfectly zeroed
+    with a short edge fade so amplitude-driven EOT detectors see a true
+    zero-amplitude silence window. Turn 0 is the opener and keeps its
+    natural prosody (no target gap).
+    """
+    turns_dir = BENCHMARK1_OUT_DIR / "turns"
+    turns_dir.mkdir(parents=True, exist_ok=True)
+
+    turns_data = []
+
+    for turn_num, sentence in enumerate(SENTENCES_BENCHMARK1):
+        speaker = sentence["voice"]
+        voice_id = VOICES[speaker]
+        category = sentence["category"]
+        display_text = sentence["display_text"]
+        expected_complete = sentence["expected_complete"]
+        target_gap = sentence.get("target_gap_ms", 0)
+
+        speaker_dir = turns_dir / f"speaker{speaker}"
+        speaker_dir.mkdir(parents=True, exist_ok=True)
+        wav_path = speaker_dir / f"turn_{turn_num:03d}.wav"
+
+        turn_entry = {
+            "turn": turn_num,
+            "speaker": speaker,
+            "start_ms": 0,
+            "end_ms": 0,
+            "duration_ms": 0,
+            "text": display_text,
+            "word_count": len(display_text.split()),
+            "hesitations": [],
+            "max_hesitation_ms": 0,
+            "category": category,
+            "expected_complete": expected_complete,
+            "target_gap_ms": target_gap,
+            "voice_id": voice_id,
+        }
+
+        if wav_path.exists() and not force:
+            if target_gap and category in ("hesitation", "hesitation2", "pause"):
+                _set_gap_duration(wav_path, target_gap, zero_fill=True)
+
+            dur = _wav_duration_ms(wav_path)
+            turn_entry["duration_ms"] = dur
+            turn_entry["end_ms"] = dur
+
+            boundaries = _analyze_speech_boundaries(wav_path)
+            turn_entry["speech_start_ms"] = boundaries["speech_start_ms"]
+            turn_entry["speech_end_ms"] = boundaries["speech_end_ms"]
+            turn_entry["rms_peak"] = boundaries["rms_peak"]
+
+            if category in ("hesitation", "hesitation2", "pause"):
+                zr = _find_zero_run(wav_path, min_ms=200)
+                if zr:
+                    turn_entry["hesitations"] = [
+                        {"at_ms": zr["start_ms"], "duration_ms": zr["duration_ms"]}
+                    ]
+                    turn_entry["max_hesitation_ms"] = zr["duration_ms"]
+            elif boundaries["silence_gaps"]:
+                turn_entry["hesitations"] = [
+                    {"at_ms": g["start_ms"], "duration_ms": g["duration_ms"]}
+                    for g in boundaries["silence_gaps"]
+                ]
+                turn_entry["max_hesitation_ms"] = max(
+                    g["duration_ms"] for g in boundaries["silence_gaps"]
+                )
+
+            label = "SKIP" if skip_existing else "EXISTS"
+            gaps_info = ""
+            if turn_entry["hesitations"]:
+                gaps_info = f" gaps={[h['duration_ms'] for h in turn_entry['hesitations']]}ms"
+            print(f"  [{turn_num:03d}] S{speaker} {category:12s} {label} {dur}ms "
+                  f"(speech {boundaries['speech_start_ms']}-{boundaries['speech_end_ms']}ms"
+                  f"{gaps_info})")
+            turns_data.append(turn_entry)
+            continue
+
+        print(f"  [{turn_num:03d}] S{speaker} {category:12s} generating...")
+
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            tmp_mp3 = Path(tmp.name)
+
+        api_resp = _synthesize_with_timestamps(
+            sentence["tts_text"], voice_id, api_key, tmp_mp3,
+        )
+
+        ok = False
+        if api_resp is not None:
+            ok = _mp3_to_wav(tmp_mp3, wav_path)
+            if ok:
+                align_info = _extract_alignment_info(api_resp)
+                if align_info:
+                    turn_entry["alignment_start_s"] = align_info["alignment_start_s"]
+                    turn_entry["alignment_end_s"] = align_info["alignment_end_s"]
+
+        tmp_mp3.unlink(missing_ok=True)
+
+        if ok:
+            if target_gap and category in ("hesitation", "hesitation2", "pause"):
+                adjusted = _set_gap_duration(wav_path, target_gap, zero_fill=True)
+                if adjusted:
+                    print(f"         set gap to {target_gap}ms (zero-fill)")
+
+            dur = _wav_duration_ms(wav_path)
+            turn_entry["duration_ms"] = dur
+            turn_entry["end_ms"] = dur
+
+            boundaries = _analyze_speech_boundaries(wav_path)
+            turn_entry["speech_start_ms"] = boundaries["speech_start_ms"]
+            turn_entry["speech_end_ms"] = boundaries["speech_end_ms"]
+            turn_entry["rms_peak"] = boundaries["rms_peak"]
+
+            if category in ("hesitation", "hesitation2", "pause"):
+                zr = _find_zero_run(wav_path, min_ms=200)
+                if zr:
+                    turn_entry["hesitations"] = [
+                        {"at_ms": zr["start_ms"], "duration_ms": zr["duration_ms"]}
+                    ]
+                    turn_entry["max_hesitation_ms"] = zr["duration_ms"]
+            elif boundaries["silence_gaps"]:
+                turn_entry["hesitations"] = [
+                    {"at_ms": g["start_ms"], "duration_ms": g["duration_ms"]}
+                    for g in boundaries["silence_gaps"]
+                ]
+                turn_entry["max_hesitation_ms"] = max(
+                    g["duration_ms"] for g in boundaries["silence_gaps"]
+                )
+
+            gaps_str = ""
+            if turn_entry["hesitations"]:
+                gap_durs = [h["duration_ms"] for h in turn_entry["hesitations"]]
+                gaps_str = f" gaps={gap_durs}ms"
+                if target_gap and category in ("hesitation", "hesitation2", "pause"):
+                    short = [d for d in gap_durs if d < target_gap]
+                    if short:
+                        gaps_str += f" WARNING: {short}ms < {target_gap}ms target"
+            print(f"         -> {dur}ms "
+                  f"(speech {boundaries['speech_start_ms']}-{boundaries['speech_end_ms']}ms"
+                  f"{gaps_str})")
+        else:
+            print(f"         -> FAILED", file=sys.stderr)
+
+        turns_data.append(turn_entry)
+        time.sleep(RATE_LIMIT_SLEEP)
+
+    index = {
+        "audio_file": "elevenlabs_tts_benchmark1",
+        "provider": "elevenlabs",
+        "model": MODEL_ID,
+        "total_turns": len(turns_data),
+        "voices": {str(k): v for k, v in VOICES.items()},
+        "_note": (
+            "Benchmark 1 corpus: 20 turns. Gaps in pause/hesitation/hesitation2 "
+            "turns are bit-perfectly zeroed (with a 3 ms linear fade at edges) "
+            "so amplitude-driven EOT detectors see a true silent window. "
+            "Reported hesitations.duration_ms reflects the measured zero region."
+        ),
+        "turns": turns_data,
+    }
+
+    BENCHMARK1_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    index_path = BENCHMARK1_OUT_DIR / "turns_index.json"
+    with open(index_path, "w") as f:
+        json.dump(index, f, indent=2)
+    print(f"\nwrote {index_path} ({len(turns_data)} turns)")
+
+    print("\n── gap validation (target range 800-1500ms, zero-fill) ──")
+    issues = []
+    ok_count = 0
+    for t in turns_data:
+        cat = t["category"]
+        if cat not in ("hesitation", "hesitation2", "pause"):
+            continue
+        target = t.get("target_gap_ms", 0)
+        if not target:
+            continue
+        hes = t.get("hesitations", [])
+        if not hes:
+            issues.append(
+                f"  turn {t['turn']:03d} ({cat}, target {target}ms): "
+                f"NO silence gaps detected"
+            )
+        else:
+            max_gap = max(h["duration_ms"] for h in hes)
+            if max_gap < target - RMS_WINDOW_MS:
+                issues.append(
+                    f"  turn {t['turn']:03d} ({cat}, target {target}ms): "
+                    f"max gap {max_gap}ms < target"
+                )
+            else:
+                ok_count += 1
+
+    if issues:
+        print(f"WARNING: {len(issues)} turns have gaps below target:")
+        for issue in issues:
+            print(issue)
+    print(f"OK: {ok_count} hesitation/pause turns meet their targets")
+
+    return index
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate TTS turn-accuracy test audio via ElevenLabs",
@@ -1046,6 +1549,10 @@ def main():
         "--hesitation2", action="store_true",
         help="Generate hesitation2 turns (prosody-only, no fillers, larger gaps)",
     )
+    parser.add_argument(
+        "--benchmark1", action="store_true",
+        help="Generate the Benchmark 1 corpus (20 turns, 800-1500ms zero-fill gaps)",
+    )
     args = parser.parse_args()
 
     api_key = _load_tts_key()
@@ -1054,7 +1561,13 @@ def main():
         print("Set TTS_KEY=your_elevenlabs_api_key in .env", file=sys.stderr)
         sys.exit(1)
 
-    if args.hesitation2:
+    if args.benchmark1:
+        generate_benchmark1(
+            api_key=api_key,
+            force=args.force,
+            skip_existing=args.skip_existing,
+        )
+    elif args.hesitation2:
         generate_hesitation2(
             api_key=api_key,
             force=args.force,

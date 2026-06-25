@@ -1,0 +1,446 @@
+{
+  "audio_file": "elevenlabs_tts_benchmark1",
+  "provider": "elevenlabs",
+  "model": "eleven_v3",
+  "total_turns": 20,
+  "voices": {
+    "0": "XnKbmWxx8uWjruHkpXmf",
+    "1": "maYJAY8nOIBZeB0UYfc5",
+    "2": "QoC8og5VjCQoTz0caaaO",
+    "3": "VUGQSU6BSEjkbudnJbOj",
+    "4": "1AKkSX7KMPHIWuz76m0n"
+  },
+  "_note": "Benchmark 1 corpus: 20 turns. Gaps in pause/hesitation/hesitation2 turns are bit-perfectly zeroed (with a 3 ms linear fade at edges) so amplitude-driven EOT detectors see a true silent window. Reported hesitations.duration_ms reflects the measured zero region.",
+  "turns": [
+    {
+      "turn": 0,
+      "speaker": 2,
+      "start_ms": 0,
+      "end_ms": 8080,
+      "duration_ms": 8080,
+      "text": "I'm going to say some random things to see how you respond. Please keep your responses to under ten words.",
+      "word_count": 20,
+      "hesitations": [
+        {
+          "at_ms": 3620,
+          "duration_ms": 1340
+        }
+      ],
+      "max_hesitation_ms": 1340,
+      "category": "normal",
+      "expected_complete": true,
+      "target_gap_ms": 0,
+      "voice_id": "QoC8og5VjCQoTz0caaaO",
+      "speech_start_ms": 120,
+      "speech_end_ms": 8060,
+      "rms_peak": 0.2872
+    },
+    {
+      "turn": 1,
+      "speaker": 0,
+      "start_ms": 0,
+      "end_ms": 5060,
+      "duration_ms": 5060,
+      "text": "Yeah, I got a bill for like... six hundred and eighty dollars and I can't pay that all today.",
+      "word_count": 19,
+      "hesitations": [
+        {
+          "at_ms": 1740,
+          "duration_ms": 900
+        }
+      ],
+      "max_hesitation_ms": 900,
+      "category": "pause",
+      "expected_complete": false,
+      "target_gap_ms": 900,
+      "voice_id": "XnKbmWxx8uWjruHkpXmf",
+      "speech_start_ms": 40,
+      "speech_end_ms": 4860,
+      "rms_peak": 0.3335
+    },
+    {
+      "turn": 2,
+      "speaker": 1,
+      "start_ms": 0,
+      "end_ms": 4980,
+      "duration_ms": 4980,
+      "text": "Michael Turner... um, April 14, 1985.",
+      "word_count": 6,
+      "hesitations": [
+        {
+          "at_ms": 900,
+          "duration_ms": 1000
+        }
+      ],
+      "max_hesitation_ms": 1000,
+      "category": "hesitation",
+      "expected_complete": false,
+      "target_gap_ms": 1000,
+      "voice_id": "maYJAY8nOIBZeB0UYfc5",
+      "speech_start_ms": 40,
+      "speech_end_ms": 4960,
+      "rms_peak": 0.3717
+    },
+    {
+      "turn": 3,
+      "speaker": 2,
+      "start_ms": 0,
+      "end_ms": 1040,
+      "duration_ms": 1040,
+      "text": "Payment plan.",
+      "word_count": 2,
+      "hesitations": [],
+      "max_hesitation_ms": 0,
+      "category": "normal",
+      "expected_complete": true,
+      "target_gap_ms": 0,
+      "voice_id": "QoC8og5VjCQoTz0caaaO",
+      "speech_start_ms": 100,
+      "speech_end_ms": 1020,
+      "rms_peak": 0.1437
+    },
+    {
+      "turn": 4,
+      "speaker": 3,
+      "start_ms": 0,
+      "end_ms": 3360,
+      "duration_ms": 3360,
+      "text": "Ask them [hesitation] [hesitation] [pause] why insurance didn't cover it.",
+      "word_count": 10,
+      "hesitations": [
+        {
+          "at_ms": 760,
+          "duration_ms": 901
+        }
+      ],
+      "max_hesitation_ms": 901,
+      "category": "hesitation2",
+      "expected_complete": false,
+      "target_gap_ms": 900,
+      "voice_id": "VUGQSU6BSEjkbudnJbOj",
+      "speech_start_ms": 0,
+      "speech_end_ms": 3340,
+      "rms_peak": 0.3514
+    },
+    {
+      "turn": 5,
+      "speaker": 4,
+      "start_ms": 0,
+      "end_ms": 2240,
+      "duration_ms": 2240,
+      "text": "That's fine, just do the payment plan.",
+      "word_count": 7,
+      "hesitations": [],
+      "max_hesitation_ms": 0,
+      "category": "normal",
+      "expected_complete": true,
+      "target_gap_ms": 0,
+      "voice_id": "1AKkSX7KMPHIWuz76m0n",
+      "speech_start_ms": 60,
+      "speech_end_ms": 2220,
+      "rms_peak": 0.6042
+    },
+    {
+      "turn": 6,
+      "speaker": 0,
+      "start_ms": 0,
+      "end_ms": 480,
+      "duration_ms": 480,
+      "text": "Yes.",
+      "word_count": 1,
+      "hesitations": [],
+      "max_hesitation_ms": 0,
+      "category": "ambiguous",
+      "expected_complete": true,
+      "target_gap_ms": 0,
+      "voice_id": "XnKbmWxx8uWjruHkpXmf",
+      "speech_start_ms": 0,
+      "speech_end_ms": 460,
+      "rms_peak": 0.3139
+    },
+    {
+      "turn": 7,
+      "speaker": 2,
+      "start_ms": 0,
+      "end_ms": 3780,
+      "duration_ms": 3780,
+      "text": "I need to update my... um, my billing address.",
+      "word_count": 9,
+      "hesitations": [
+        {
+          "at_ms": 1580,
+          "duration_ms": 820
+        }
+      ],
+      "max_hesitation_ms": 820,
+      "category": "hesitation",
+      "expected_complete": false,
+      "target_gap_ms": 800,
+      "voice_id": "QoC8og5VjCQoTz0caaaO",
+      "speech_start_ms": 140,
+      "speech_end_ms": 3580,
+      "rms_peak": 0.2229
+    },
+    {
+      "turn": 8,
+      "speaker": 2,
+      "start_ms": 0,
+      "end_ms": 2160,
+      "duration_ms": 2160,
+      "text": "That's not really what I was looking for but.",
+      "word_count": 9,
+      "hesitations": [],
+      "max_hesitation_ms": 0,
+      "category": "ambiguous",
+      "expected_complete": true,
+      "target_gap_ms": 0,
+      "voice_id": "QoC8og5VjCQoTz0caaaO",
+      "speech_start_ms": 140,
+      "speech_end_ms": 1940,
+      "rms_peak": 0.1004
+    },
+    {
+      "turn": 9,
+      "speaker": 0,
+      "start_ms": 0,
+      "end_ms": 4080,
+      "duration_ms": 4080,
+      "text": "I'd like to book a table for two at seven o'clock tonight please.",
+      "word_count": 13,
+      "hesitations": [],
+      "max_hesitation_ms": 0,
+      "category": "normal",
+      "expected_complete": true,
+      "target_gap_ms": 0,
+      "voice_id": "XnKbmWxx8uWjruHkpXmf",
+      "speech_start_ms": 100,
+      "speech_end_ms": 3920,
+      "rms_peak": 0.371
+    },
+    {
+      "turn": 10,
+      "speaker": 3,
+      "start_ms": 0,
+      "end_ms": 4080,
+      "duration_ms": 4080,
+      "text": "My account number starts with [pause] eight six three.",
+      "word_count": 9,
+      "hesitations": [
+        {
+          "at_ms": 1620,
+          "duration_ms": 1000
+        }
+      ],
+      "max_hesitation_ms": 1000,
+      "category": "pause",
+      "expected_complete": false,
+      "target_gap_ms": 1000,
+      "voice_id": "VUGQSU6BSEjkbudnJbOj",
+      "speech_start_ms": 40,
+      "speech_end_ms": 3820,
+      "rms_peak": 0.4087
+    },
+    {
+      "turn": 11,
+      "speaker": 1,
+      "start_ms": 0,
+      "end_ms": 5800,
+      "duration_ms": 5800,
+      "text": "The last time I checked it was [hesitation] [hesitation] [pause] somewhere around forty five dollars.",
+      "word_count": 15,
+      "hesitations": [
+        {
+          "at_ms": 2180,
+          "duration_ms": 800
+        }
+      ],
+      "max_hesitation_ms": 800,
+      "category": "hesitation2",
+      "expected_complete": false,
+      "target_gap_ms": 800,
+      "voice_id": "maYJAY8nOIBZeB0UYfc5",
+      "speech_start_ms": 0,
+      "speech_end_ms": 4200,
+      "rms_peak": 0.4295
+    },
+    {
+      "turn": 12,
+      "speaker": 2,
+      "start_ms": 0,
+      "end_ms": 5740,
+      "duration_ms": 5740,
+      "text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
+      "word_count": 15,
+      "hesitations": [
+        {
+          "at_ms": 2660,
+          "duration_ms": 1020
+        }
+      ],
+      "max_hesitation_ms": 1020,
+      "category": "hesitation2",
+      "expected_complete": false,
+      "target_gap_ms": 1000,
+      "voice_id": "QoC8og5VjCQoTz0caaaO",
+      "speech_start_ms": 80,
+      "speech_end_ms": 5560,
+      "rms_peak": 0.4899
+    },
+    {
+      "turn": 13,
+      "speaker": 1,
+      "start_ms": 0,
+      "end_ms": 5140,
+      "duration_ms": 5140,
+      "text": "We could also try... yeah, the other location might work better.",
+      "word_count": 11,
+      "hesitations": [
+        {
+          "at_ms": 1220,
+          "duration_ms": 1200
+        }
+      ],
+      "max_hesitation_ms": 1200,
+      "category": "hesitation",
+      "expected_complete": false,
+      "target_gap_ms": 1200,
+      "voice_id": "maYJAY8nOIBZeB0UYfc5",
+      "speech_start_ms": 80,
+      "speech_end_ms": 5020,
+      "rms_peak": 0.461
+    },
+    {
+      "turn": 14,
+      "speaker": 3,
+      "start_ms": 0,
+      "end_ms": 5020,
+      "duration_ms": 5020,
+      "text": "I was going to renew but then the [hesitation] [hesitation] [pause] [pause] price went up by almost double.",
+      "word_count": 18,
+      "hesitations": [
+        {
+          "at_ms": 2540,
+          "duration_ms": 1220
+        }
+      ],
+      "max_hesitation_ms": 1220,
+      "category": "hesitation2",
+      "expected_complete": false,
+      "target_gap_ms": 1200,
+      "voice_id": "VUGQSU6BSEjkbudnJbOj",
+      "speech_start_ms": 80,
+      "speech_end_ms": 5000,
+      "rms_peak": 0.3917
+    },
+    {
+      "turn": 15,
+      "speaker": 2,
+      "start_ms": 0,
+      "end_ms": 4240,
+      "duration_ms": 4240,
+      "text": "Could you transfer me to [pause] the billing department please?",
+      "word_count": 10,
+      "hesitations": [
+        {
+          "at_ms": 1820,
+          "duration_ms": 800
+        }
+      ],
+      "max_hesitation_ms": 800,
+      "category": "pause",
+      "expected_complete": false,
+      "target_gap_ms": 800,
+      "voice_id": "QoC8og5VjCQoTz0caaaO",
+      "speech_start_ms": 60,
+      "speech_end_ms": 3980,
+      "rms_peak": 0.1896
+    },
+    {
+      "turn": 16,
+      "speaker": 0,
+      "start_ms": 0,
+      "end_ms": 6860,
+      "duration_ms": 6860,
+      "text": "I'm calling because [pause] I received the wrong item yesterday.",
+      "word_count": 10,
+      "hesitations": [
+        {
+          "at_ms": 1480,
+          "duration_ms": 1200
+        }
+      ],
+      "max_hesitation_ms": 1200,
+      "category": "pause",
+      "expected_complete": false,
+      "target_gap_ms": 1200,
+      "voice_id": "XnKbmWxx8uWjruHkpXmf",
+      "speech_start_ms": 100,
+      "speech_end_ms": 4680,
+      "rms_peak": 0.3273
+    },
+    {
+      "turn": 17,
+      "speaker": 3,
+      "start_ms": 0,
+      "end_ms": 5040,
+      "duration_ms": 5040,
+      "text": "The appointment was for... uh, I think it was three thirty.",
+      "word_count": 11,
+      "hesitations": [
+        {
+          "at_ms": 1920,
+          "duration_ms": 1000
+        }
+      ],
+      "max_hesitation_ms": 1000,
+      "category": "hesitation",
+      "expected_complete": false,
+      "target_gap_ms": 1000,
+      "voice_id": "VUGQSU6BSEjkbudnJbOj",
+      "speech_start_ms": 100,
+      "speech_end_ms": 4920,
+      "rms_peak": 0.3612
+    },
+    {
+      "turn": 18,
+      "speaker": 4,
+      "start_ms": 0,
+      "end_ms": 7320,
+      "duration_ms": 7320,
+      "text": "The problem is that my old [hesitation] [hesitation] [pause] [pause] subscription was cancelled without any notice.",
+      "word_count": 16,
+      "hesitations": [
+        {
+          "at_ms": 2200,
+          "duration_ms": 1500
+        }
+      ],
+      "max_hesitation_ms": 1500,
+      "category": "hesitation2",
+      "expected_complete": false,
+      "target_gap_ms": 1500,
+      "voice_id": "1AKkSX7KMPHIWuz76m0n",
+      "speech_start_ms": 0,
+      "speech_end_ms": 7300,
+      "rms_peak": 0.6741
+    },
+    {
+      "turn": 19,
+      "speaker": 1,
+      "start_ms": 0,
+      "end_ms": 3200,
+      "duration_ms": 3200,
+      "text": "I mean I'm not entirely sure about that, it's hard to say.",
+      "word_count": 12,
+      "hesitations": [],
+      "max_hesitation_ms": 0,
+      "category": "ambiguous",
+      "expected_complete": true,
+      "target_gap_ms": 0,
+      "voice_id": "maYJAY8nOIBZeB0UYfc5",
+      "speech_start_ms": 80,
+      "speech_end_ms": 3180,
+      "rms_peak": 0.2687
+    }
+  ]
+}

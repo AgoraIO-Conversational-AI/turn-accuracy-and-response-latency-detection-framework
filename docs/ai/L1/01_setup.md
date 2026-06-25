@@ -94,8 +94,9 @@ Copy `.env.example` to `.env` and fill in API keys:
 
 ```bash
 # Option A: Generate synthetic TTS test turns (recommended)
-# Requires TTS_KEY in .env — produces 25 turns across 5 categories
-python -m src.harness.generate_tts
+# Requires TTS_KEY in .env — produces the default Benchmark 1 corpus
+# (20 turns, 800-1500 ms bit-perfect-zero gaps).
+python -m src.harness.generate_tts --benchmark1
 
 # Option B: Segment real recorded audio into turns
 python -m src.harness.segment fixtures/sovereign_place_5.m4a

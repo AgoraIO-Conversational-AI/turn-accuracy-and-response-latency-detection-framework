@@ -19,7 +19,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 OUT_DIR = BASE_DIR / "out"
 
 # available sources: name -> (turns_index.json path, turns dir)
+# Order matters — first entry becomes the default in the UI dropdown.
 SOURCES = {
+    "benchmark_1": {
+        # 20-turn corpus opening with a billing-call scenario, then a mix
+        # of pause/hesitation/hesitation2/normal/ambiguous turns. Every
+        # hesitation/pause/hesitation2 gap is bit-perfectly zeroed with a
+        # 3 ms linear fade at the edges (800-1500 ms target range). This
+        # is the default source for new runs.
+        "label": "Benchmark 1",
+        "index": OUT_DIR / "Benchmark_1" / "turns_index.json",
+        "turns_dir": OUT_DIR / "Benchmark_1" / "turns",
+    },
     "sovereign5": {
         "label": "Lucy and Tabby",
         "index": OUT_DIR / "turns_index.json",
@@ -108,7 +119,7 @@ class TurnManager:
         self.run = RunState()
         self._turns_data: list[dict] = []
         self._stop_requested = False
-        self._current_source = "tts_turns"
+        self._current_source = "benchmark_1"
         self._load_turns()
 
     def _load_turns(self):

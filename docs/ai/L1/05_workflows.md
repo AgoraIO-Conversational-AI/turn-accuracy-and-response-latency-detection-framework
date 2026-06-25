@@ -44,26 +44,43 @@ Output: `diarize_output/raw_*.json`, `diarize_output/*_speaker*.wav`, `diarize_o
 ## Workflow 4: Generate TTS Test Turns
 
 ```bash
-# Generate all 25 turns across 5 speakers (requires TTS_KEY in .env)
+# Default — generate the Benchmark 1 corpus (20 turns, bit-perfect zero gaps)
+python -m src.harness.generate_tts --benchmark1
+
+# Generate the original 25-turn TTS_Turns corpus (legacy, comfort-noise gaps)
 python -m src.harness.generate_tts
 
 # Re-generate all WAVs from scratch
-python -m src.harness.generate_tts --force
+python -m src.harness.generate_tts --benchmark1 --force
 
 # Generate hesitation2-only subset for isolated testing
 python -m src.harness.generate_tts --hesitation2
 ```
 
-Output: `out/TTS_Turns/turns_index.json` + `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav`
+Output:
+- `--benchmark1`: `out/Benchmark_1/turns_index.json` + `out/Benchmark_1/turns/speaker{0-4}/turn_NNN.wav`
+- default (legacy): `out/TTS_Turns/turns_index.json` + `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav`
 
-Turn categories (25 total, interleaved):
-- **normal** (5): semantically and prosodically complete sentences
-- **pause** (5): mid-sentence `[pause]` tag producing silence gaps (500-1200ms)
-- **hesitation** (5): filler words ("um"/"uh") with `[hesitation]` tags (500-1200ms)
-- **hesitation2** (5): prosody-only pauses via `[hesitation]` tags, no fillers (600-1500ms)
-- **ambiguous** (5): trailing-off sentences that sound potentially complete
+### Benchmark 1 corpus (default source)
 
-Gap durations are enforced precisely — ElevenLabs produces a natural gap via tags, then the generator stretches/trims to the exact target using comfort noise.
+20 turns, opening with a billing-call scenario (turns 1-6), then a mix of pause / hesitation / hesitation2 / normal / ambiguous turns kept from the original corpus.
+
+Category mix:
+- **normal** (4): including the opener (turn 0, "I'm going to say some random things…")
+- **pause** (4): mid-sentence `[pause]` tag producing silence gaps (800-1200ms)
+- **hesitation** (4): filler words ("um"/"uh") with `[hesitation]` tags (800-1200ms)
+- **hesitation2** (5): prosody-only pauses via `[hesitation]` tags, no fillers (800-1500ms)
+- **ambiguous** (3): trailing-off sentences that sound potentially complete
+
+All pause/hesitation/hesitation2 gaps target 800-1500ms and are **bit-perfectly zeroed** (integer-0 samples) with a 3 ms linear fade at each edge to avoid click artifacts. The reported `hesitations.duration_ms` in `turns_index.json` is the exact zero-run length, not an RMS-window estimate — so amplitude-driven EOT detectors see a true zero-amplitude silence window.
+
+Turn 0 keeps its natural prosody and is not zero-filled — it carries the operator instructions ("Please keep your responses to under ten words.").
+
+### Legacy TTS_Turns corpus
+
+25 turns, comfort-noise-filled gaps (500-1500ms), still available as the `tts_turns` source. `tts_turns_silenced` is the same corpus with gap interiors zeroed in post — kept for backwards-compatibility runs. New work should target Benchmark 1.
+
+Gap durations are enforced precisely — ElevenLabs produces a natural gap via tags, then the generator stretches/trims to the exact target. Benchmark 1 uses integer-zero fill; the legacy `tts_turns` source fills with comfort noise.
 
 ## Workflow 5: Add a New Audio Source
 

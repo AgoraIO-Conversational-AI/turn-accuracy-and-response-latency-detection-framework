@@ -36,6 +36,8 @@
 |------|---------|
 | `out/turns_index.json` | Turn timing and metadata |
 | `out/turns/speaker{0,1}/turn_NNN.wav` | Per-turn audio clips |
-| `out/TTS_Turns/turns_index.json` | TTS turn metadata with categories |
-| `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav` | Synthetic TTS turn audio |
+| `out/Benchmark_1/turns_index.json` | Default 20-turn TTS corpus (bit-perfect zero gaps) |
+| `out/Benchmark_1/turns/speaker{0-4}/turn_NNN.wav` | Benchmark 1 turn audio |
+| `out/TTS_Turns/turns_index.json` | Legacy TTS turn metadata with categories |
+| `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav` | Legacy synthetic TTS turn audio |
 | `diarize_output/` | Diarization comparison results |
