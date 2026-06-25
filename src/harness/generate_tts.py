@@ -352,7 +352,7 @@ SENTENCES_BENCHMARK1 = [
         "voice": 0,
         "category": "pause",
         "tts_text": "Yeah, I got a bill for like [pause] [pause] six hundred and eighty dollars and I can't pay that all today.",
-        "display_text": "Yeah, I got a bill for like six hundred and eighty dollars and I can't pay that all today.",
+        "display_text": "Yeah, I got a bill for like [pause] six hundred and eighty dollars and I can't pay that all today.",
         "expected_complete": False,
         "target_gap_ms": 900,
     },
@@ -362,7 +362,7 @@ SENTENCES_BENCHMARK1 = [
         "voice": 1,
         "category": "hesitation",
         "tts_text": "Michael Turner, [hesitation] [hesitation] [pause] April fourteenth, nineteen eighty five.",
-        "display_text": "Michael Turner, April 14, 1985.",
+        "display_text": "Michael Turner, [hesitation] [pause] April 14, 1985.",
         "expected_complete": False,
         "target_gap_ms": 1000,
     },
@@ -380,7 +380,7 @@ SENTENCES_BENCHMARK1 = [
         "voice": 3,
         "category": "hesitation",
         "tts_text": "Ask them [hesitation] [hesitation] [pause] why insurance didn't cover it.",
-        "display_text": "Ask them, why insurance didn't cover it.",
+        "display_text": "Ask them [hesitation] [pause] why insurance didn't cover it.",
         "expected_complete": False,
         "target_gap_ms": 900,
     },
@@ -400,12 +400,12 @@ SENTENCES_BENCHMARK1 = [
         "display_text": "Yes.",
         "expected_complete": True,
     },
-    # 7 — hesitation 800ms (kept from original turn 2)
+    # 7 — hesitation 800ms (kept from original turn 2; audio retains legacy "um" filler)
     {
         "voice": 2,
         "category": "hesitation",
         "tts_text": "I need to update my [hesitation] [hesitation] [pause] um, my billing address.",
-        "display_text": "I need to update my... um, my billing address.",
+        "display_text": "I need to update my [hesitation] [pause] um, my billing address.",
         "expected_complete": False,
         "target_gap_ms": 800,
     },
@@ -452,12 +452,12 @@ SENTENCES_BENCHMARK1 = [
         "expected_complete": False,
         "target_gap_ms": 1000,
     },
-    # 13 — hesitation 1200ms (kept from original turn 15)
+    # 13 — hesitation 1200ms (kept from original turn 15; audio retains legacy "yeah" filler)
     {
         "voice": 1,
         "category": "hesitation",
         "tts_text": "We could also try [hesitation] [hesitation] [pause] yeah, the other location might work better.",
-        "display_text": "We could also try... yeah, the other location might work better.",
+        "display_text": "We could also try [hesitation] [pause] yeah, the other location might work better.",
         "expected_complete": False,
         "target_gap_ms": 1200,
     },
@@ -488,12 +488,12 @@ SENTENCES_BENCHMARK1 = [
         "expected_complete": False,
         "target_gap_ms": 1200,
     },
-    # 17 — hesitation 1000ms (kept from original turn 22)
+    # 17 — hesitation 1000ms (kept from original turn 22; audio retains legacy "uh" filler)
     {
         "voice": 3,
         "category": "hesitation",
         "tts_text": "The appointment was for [hesitation] [hesitation] [pause] uh, I think it was three thirty.",
-        "display_text": "The appointment was for... uh, I think it was three thirty.",
+        "display_text": "The appointment was for [hesitation] [pause] uh, I think it was three thirty.",
         "expected_complete": False,
         "target_gap_ms": 1000,
     },

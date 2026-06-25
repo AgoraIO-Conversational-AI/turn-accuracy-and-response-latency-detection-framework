@@ -43,8 +43,8 @@
       "start_ms": 0,
       "end_ms": 4100,
       "duration_ms": 4100,
-      "text": "Yeah, I got a bill for like six hundred and eighty dollars and I can't pay that all today.",
-      "word_count": 19,
+      "text": "Yeah, I got a bill for like [pause] six hundred and eighty dollars and I can't pay that all today.",
+      "word_count": 20,
       "hesitations": [
         {
           "at_ms": 1600,
@@ -66,8 +66,8 @@
       "start_ms": 0,
       "end_ms": 4360,
       "duration_ms": 4360,
-      "text": "Michael Turner, April 14, 1985.",
-      "word_count": 5,
+      "text": "Michael Turner, [hesitation] [pause] April 14, 1985.",
+      "word_count": 7,
       "hesitations": [
         {
           "at_ms": 900,
@@ -107,8 +107,8 @@
       "start_ms": 0,
       "end_ms": 3940,
       "duration_ms": 3940,
-      "text": "Ask them, why insurance didn't cover it.",
-      "word_count": 7,
+      "text": "Ask them [hesitation] [pause] why insurance didn't cover it.",
+      "word_count": 9,
       "hesitations": [
         {
           "at_ms": 900,
@@ -166,8 +166,8 @@
       "start_ms": 0,
       "end_ms": 4220,
       "duration_ms": 4220,
-      "text": "I need to update my... um, my billing address.",
-      "word_count": 9,
+      "text": "I need to update my [hesitation] [pause] um, my billing address.",
+      "word_count": 11,
       "hesitations": [
         {
           "at_ms": 1562,
@@ -306,8 +306,8 @@
       "start_ms": 0,
       "end_ms": 5280,
       "duration_ms": 5280,
-      "text": "We could also try... yeah, the other location might work better.",
-      "word_count": 11,
+      "text": "We could also try [hesitation] [pause] yeah, the other location might work better.",
+      "word_count": 13,
       "hesitations": [
         {
           "at_ms": 1642,
@@ -406,8 +406,8 @@
       "start_ms": 0,
       "end_ms": 4019,
       "duration_ms": 4019,
-      "text": "The appointment was for... uh, I think it was three thirty.",
-      "word_count": 11,
+      "text": "The appointment was for [hesitation] [pause] uh, I think it was three thirty.",
+      "word_count": 13,
       "hesitations": [
         {
           "at_ms": 1740,
