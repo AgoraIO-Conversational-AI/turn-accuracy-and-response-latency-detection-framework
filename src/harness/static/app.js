@@ -669,15 +669,46 @@ async function runAll() {
   updateControls();
   const turns = state.turns.slice();
   benchLog("run_all start —", turns.length, "turns");
-  for (const turn of turns) {
-    if (abortCtl.signal.aborted) {
-      benchLog("run_all aborted before turn", turn.turn);
-      break;
+  // Persistent capture: one AudioContext + getUserMedia + ScriptProcessor
+  // for the whole run instead of recreating per turn (was costing 3-7s
+  // of capture→play gap). Each turn re-arms the VAD state. A silence
+  // gate between turns waits for the input to be quiet, which also
+  // suppresses the "previous-turn late response bleeds into next turn"
+  // false-barge-in pattern seen after no_response turns.
+  let runCap = null;
+  try {
+    const devs = deviceIdsForHarness();
+    runCap = await window.benchHarness.startCapture(devs.input);
+    benchLog(`persistent capture opened (sr=${runCap.actualSampleRate})`);
+  } catch (e) {
+    console.error("[bench] failed to open persistent capture:", e);
+    benchLog("falling back to per-turn capture");
+  }
+  try {
+    for (const turn of turns) {
+      if (abortCtl.signal.aborted) {
+        benchLog("run_all aborted before turn", turn.turn);
+        break;
+      }
+      // Wait for input silence (or 5 s cap) before arming the next turn,
+      // so a still-playing late TTS from the previous turn doesn't
+      // trigger a false barge-in on turn 0 of this one.
+      if (runCap && window.benchHarness.waitForSilence) {
+        const settled = await window.benchHarness.waitForSilence(
+          runCap, 400, 5000, abortCtl.signal,
+        );
+        if (!settled) benchLog(`turn ${turn.turn} pre-arm silence gate timed out`);
+      }
+      if (abortCtl.signal.aborted) break;
+      await runBrowserTurnFlow(turn, abortCtl.signal, runId, runCap);
+      if (abortCtl.signal.aborted) break;
+      // No inter-turn breather — back-to-back per user request.
     }
-    await runBrowserTurnFlow(turn, abortCtl.signal, runId);
-    if (abortCtl.signal.aborted) break;
-    // small inter-turn breather (matches Python harness default 0.5s)
-    await new Promise((r) => setTimeout(r, 500));
+  } finally {
+    if (runCap) {
+      try { runCap.stop(); } catch {}
+      benchLog("persistent capture closed");
+    }
   }
   // If this run wasn't superseded by a newer one, clear shared state.
   if (state.abortCtl === abortCtl) state.abortCtl = null;
@@ -767,7 +798,7 @@ function deviceIdsForHarness() {
 // Wraps a single turn in the local UI lifecycle + the browser harness
 // runner + result submission to the server. signal/runId let us identify
 // and abort orphan runs after a Stop or Reset.
-async function runBrowserTurnFlow(turn, signal, runId) {
+async function runBrowserTurnFlow(turn, signal, runId, cap) {
   state.currentTurn = turn.turn;
   setTurnStatus(turn.turn, "playing");
   highlightRow(turn.turn);
@@ -795,6 +826,7 @@ async function runBrowserTurnFlow(turn, signal, runId) {
       BASE,
       phaseHandler,
       signal,
+      cap ? { cap } : undefined,
     );
   } catch (e) {
     if (e && (e.name === "AbortError" || signal?.aborted)) {

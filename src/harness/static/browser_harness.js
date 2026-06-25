@@ -115,6 +115,12 @@ async function startCapture(inputDeviceId) {
   // would skew the VAD's per-frame timing; that's the main reason we
   // require Chrome / Edge in the setup docs.
   const ctx = new AudioContext({ sampleRate: VAD_RATE });
+  const actualSr = ctx.sampleRate;
+  if (actualSr !== VAD_RATE) {
+    console.warn(
+      `[harness] AudioContext sampleRate hint rejected: asked for ${VAD_RATE}, got ${actualSr}. Wall-clock TTFA will be used.`,
+    );
+  }
   const constraints = {
     audio: {
       deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
@@ -129,27 +135,67 @@ async function startCapture(inputDeviceId) {
   };
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
   const src = ctx.createMediaStreamSource(stream);
-  // ScriptProcessor is deprecated but still ships everywhere and gives
-  // us synchronous frames; an AudioWorklet would require a separate
-  // file. Buffer size must be a power of 2; 512 = exactly one VAD frame
-  // at 16 kHz so no buffering glitches.
   const proc = ctx.createScriptProcessor(VAD_FRAME, 1, 1);
 
+  // VAD processes ALL frames for the lifetime of the capture, even
+  // between turns. armForTurn() only resets the per-turn tracking
+  // (firstSpeechWall, callbackCount, etc.) — `vad.active` keeps
+  // reflecting real-time input state so callers can ask "is the
+  // input currently quiet?" while we're transitioning between turns.
+  // (Disarming the VAD would freeze isSpeechActive at whatever value
+  // it had at disarm time, defeating the inter-turn silence gate.)
   const vad = new BrowserVad();
-  let speechStartedAt = null; // audio-time (s) of first speech_start
-  let lastSpeechWall = null;  // performance.now() at most recent speech_active frame
-  const startWall = performance.now();
+  let armWall = performance.now();
+  let speechStartedAt = null;     // audio-time (s) of first speech_start since arm
+  let firstSpeechWall = null;     // performance.now() at first speech_start frame
+  let lastSpeechWall = null;      // performance.now() at most recent speech_active frame
+  let callbackCount = 0;          // since arm — diagnoses batching
 
   proc.onaudioprocess = (ev) => {
     const data = ev.inputBuffer.getChannelData(0);
     const events = vad.processChunk(data);
+    callbackCount++;
     for (const e of events) {
       if (e.type === "speech_start" && speechStartedAt === null) {
-        speechStartedAt = e.timeS;
+        // First speech since the most recent armForTurn(). Audio-time
+        // measured from arm point so the per-turn math stays correct.
+        speechStartedAt = e.timeS - (armAudioTime);
+        firstSpeechWall = performance.now();
       }
     }
     if (vad.active) lastSpeechWall = performance.now();
   };
+
+  // Audio-time offset captured at each arm so per-turn `speechStartedAt`
+  // is relative to the arm point, not the absolute start of capture.
+  let armAudioTime = 0;
+  const getAudioTimeSeconds = () => vad.totalSamples / VAD_RATE;
+
+  const armForTurn = () => {
+    // VAD keeps running between turns (so isSpeechActive stays
+    // truthful for the inter-turn silence gate), but we explicitly
+    // mark "not currently mid-utterance" here so the next loud frame
+    // counts as a fresh speech_start for THIS turn. Without this, if
+    // the agent's response from turn N-1 was still ringing during the
+    // silence gate, vad.active could stay continuously true across
+    // the turn boundary and we'd never see a new speech_start
+    // (manifests as a spurious no_response on the next turn).
+    vad.active = false;
+    vad.silence = 0;
+    armWall = performance.now();
+    armAudioTime = getAudioTimeSeconds();
+    speechStartedAt = null;
+    firstSpeechWall = null;
+    lastSpeechWall = null;
+    callbackCount = 0;
+  };
+  // disarm is a no-op now (VAD keeps running). Kept on the API for
+  // backwards-compatibility with the runBrowserTurn caller.
+  const disarm = () => {};
+
+  // Arm immediately so single-turn callers (playSingle) keep working
+  // without an explicit arm step.
+  armForTurn();
 
   // Silent gain so ScriptProcessor stays alive (it only fires when in
   // the audio graph upstream of destination) without piping the mic
@@ -162,15 +208,30 @@ async function startCapture(inputDeviceId) {
   muteSink.connect(ctx.destination);
 
   return {
-    startWall,
+    actualSampleRate: actualSr,
+    // Per-turn arm/disarm. The poll loop calls armForTurn() before each
+    // turn so state is fresh; the captured audio graph survives across
+    // turns to avoid getUserMedia / AudioContext setup cost.
+    armForTurn,
+    disarm,
+    // startWall is the arm time of the CURRENT turn (was: the time
+    // capture was opened). Existing callers read this as the zero
+    // point for the turn, which is exactly what arm time provides.
+    get startWall() { return armWall; },
     get speechStartedAtMs() {
       return speechStartedAt !== null ? speechStartedAt * 1000 : null;
+    },
+    get firstSpeechWallMs() {
+      return firstSpeechWall;
     },
     get lastSpeechWallMs() {
       return lastSpeechWall;
     },
     get isSpeechActive() {
       return vad.active;
+    },
+    get callbackCount() {
+      return callbackCount;
     },
     stop() {
       try { proc.disconnect(); } catch {}
@@ -187,7 +248,7 @@ async function startCapture(inputDeviceId) {
 // setSinkId. Returns a controller {startWall, ended (Promise), stop()}.
 // stop() halts playback and resolves `ended` immediately so a poll
 // loop awaiting it can move on.
-async function startPlayback(wavUrl, primaryOutputId, monitorOutputId) {
+async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBeforePlay) {
   const mkAudio = async (sinkId) => {
     const el = new Audio();
     el.preload = "auto";
@@ -215,14 +276,36 @@ async function startPlayback(wavUrl, primaryOutputId, monitorOutputId) {
   let endedResolve;
   const ended = new Promise((resolve) => { endedResolve = resolve; });
   primary.addEventListener("ended", () => endedResolve(), { once: true });
+  // Arm immediately before play() so startWall and the VAD's
+  // "first speech since arm" clock align to the same instant.
+  if (typeof armBeforePlay === "function") {
+    try { armBeforePlay(); } catch (e) { console.warn("armBeforePlay threw:", e); }
+  }
   const startWall = performance.now();
   primary.play();
   if (monitor) monitor.play();
+  // Cleanup releases the underlying MediaElement audio node + decoder
+  // so we don't leak one (or two) per turn. Without this, Run All over
+  // 25 turns leaves ~50 elements holding sample data + sink references,
+  // and Chrome starts to delay AudioContext / ScriptProcessor scheduling
+  // — observed as TTFA inflation that grows over the run.
+  const release = (el) => {
+    try { el.pause(); } catch {}
+    try { el.src = ""; } catch {}
+    try { el.removeAttribute("src"); } catch {}
+    try { el.load(); } catch {}
+  };
   const stop = () => {
-    try { primary.pause(); } catch {}
-    try { if (monitor) monitor.pause(); } catch {}
+    release(primary);
+    if (monitor) release(monitor);
     endedResolve();
   };
+  // Auto-release once playback finishes (the natural path through
+  // poll loop -> playPromise resolves). stop() handles the abort path.
+  ended.then(() => {
+    release(primary);
+    if (monitor) release(monitor);
+  });
   return { startWall, ended, stop };
 }
 
@@ -233,7 +316,7 @@ async function startPlayback(wavUrl, primaryOutputId, monitorOutputId) {
 // playback stopped, and the function throws an AbortError so the
 // caller can identify orphan completions and discard them.
 // Returns the result payload that POST /api/results/submit expects.
-export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase, signal) {
+export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase, signal, opts) {
   const log = (...a) => console.log(`[harness#turn${turn.turn}]`, ...a);
   const throwIfAborted = () => {
     if (signal && signal.aborted) {
@@ -253,10 +336,26 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
 
   const emit = (p, partial) => phase && phase(p, partial);
   throwIfAborted();
-  emit("capture_starting");
-  log("capture_starting input=", devices.input?.slice?.(0, 8));
-  const cap = await startCapture(devices.input);
-  if (signal && signal.aborted) { cap.stop(); throwIfAborted(); }
+
+  // Persistent capture: if the caller passes one in (Run All), reuse
+  // it. We deliberately DON'T armForTurn() here — that would zero
+  // the speech-start clock while we're still doing mkAudio /
+  // setSinkId / canplaythrough, and any leftover audio from the
+  // previous turn would be counted as a barge-in once arm + play
+  // are reconciled. We arm right before primary.play() below.
+  let cap = opts?.cap;
+  const ownCap = !cap;
+  if (cap) {
+    log("reusing persistent capture (arm deferred to play)");
+  } else {
+    emit("capture_starting");
+    log("capture_starting input=", devices.input?.slice?.(0, 8));
+    cap = await startCapture(devices.input);
+  }
+  if (signal && signal.aborted) {
+    if (ownCap) cap.stop();
+    throwIfAborted();
+  }
 
   emit("playing");
   log(`playing wav=${wavUrl} expectedEnd=${expectedEndMs}ms`);
@@ -264,7 +363,15 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
   let playbackError = null;
   let playController = null;
   try {
-    playController = await startPlayback(wavUrl, devices.output, devices.monitor);
+    playController = await startPlayback(
+      wavUrl, devices.output, devices.monitor,
+      // armBeforePlay: invoked synchronously immediately before
+      // primary.play() so the VAD's "first speech since arm" clock
+      // is t=0 at the moment audio actually begins. Anything the
+      // mic heard during the setSinkId / canplaythrough wait is
+      // leftover from prior turns and is correctly ignored.
+      () => cap.armForTurn(),
+    );
   } catch (e) {
     playbackError = e;
     playbackEndWall = performance.now();
@@ -305,7 +412,39 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
 
     if (firstSpeechAudioMs === null && cap.speechStartedAtMs !== null) {
       firstSpeechAudioMs = cap.speechStartedAtMs;
-      const ttfa = firstSpeechAudioMs - expectedEndMs;
+      // Zero point for TTFA is *playback start*, not capture start.
+      // Capture opens before mkAudio()/setSinkId()/canplaythrough are
+      // ready, and that capture→play gap is non-zero (sometimes
+      // multi-second when the page accumulates leaked Audio elements).
+      // `playController.startWall` is the actual moment primary.play()
+      // was called.
+      const playStartWall = playController?.startWall ?? cap.startWall;
+      const captureToPlayMs = playStartWall - cap.startWall;
+      // Audio-time TTFA, offset by the capture→play gap.
+      const audioFromPlayMs = firstSpeechAudioMs - captureToPlayMs;
+      const ttfaAudio = audioFromPlayMs - expectedEndMs;
+      // Wall-clock TTFA — independent of audio-time math.
+      const wallFromPlayMs = cap.firstSpeechWallMs != null
+        ? (cap.firstSpeechWallMs - playStartWall)
+        : null;
+      const ttfaWall = wallFromPlayMs != null
+        ? (wallFromPlayMs - expectedEndMs)
+        : null;
+      const rateMismatch = cap.actualSampleRate !== VAD_RATE;
+      // Use wall-clock when the rate hint was rejected, otherwise the
+      // audio-time number (which has slightly less bias).
+      const ttfa = rateMismatch && ttfaWall != null ? ttfaWall : ttfaAudio;
+      log(
+        `speech_start: ` +
+        `audio-time-from-capture=${firstSpeechAudioMs.toFixed(0)}ms ` +
+        `wall-from-capture=${cap.firstSpeechWallMs != null ? (cap.firstSpeechWallMs - cap.startWall).toFixed(0) : "?"}ms ` +
+        `capture→play=${captureToPlayMs.toFixed(0)}ms ` +
+        `expectedEnd=${expectedEndMs}ms ` +
+        `ttfa(audio)=${ttfaAudio.toFixed(0)}ms ` +
+        `ttfa(wall)=${ttfaWall?.toFixed?.(0) ?? "?"}ms ` +
+        `sr=${cap.actualSampleRate} cb=${cap.callbackCount} ` +
+        `→ using ${rateMismatch ? "WALL" : "AUDIO"}`,
+      );
       if (ttfa < 0) {
         result.barge_in = true;
         result.barge_in_at_ms = firstSpeechAudioMs;
@@ -319,6 +458,10 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
         }
       }
       result.ttfa_ms = ttfa;
+      result.ttfa_audio_ms = ttfaAudio;
+      result.ttfa_wall_ms = ttfaWall;
+      result.capture_to_play_ms = captureToPlayMs;
+      result.sample_rate = cap.actualSampleRate;
       if (result.barge_in) result.status = "barge_in";
       // Fire the phase event with a snapshot of the result so the UI
       // can flip the row's status badge + TTFA cell the instant we
@@ -331,6 +474,22 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
     if (pastExpectedEnd && firstSpeechAudioMs === null) {
       const sinceEnd = elapsedS - expectedEndMs / 1000;
       if (sinceEnd > MAX_WAIT_FOR_RESPONSE_S) {
+        // Distinguish "agent stayed silent" from "agent spoke but
+        // the VAD missed the leading edge" so we can debug spurious
+        // no_response classifications.
+        const sawAnyActivity = cap.lastSpeechWallMs != null;
+        const lastActivityAgo = sawAnyActivity
+          ? `${(performance.now() - cap.lastSpeechWallMs).toFixed(0)}ms ago`
+          : "never";
+        log(
+          `no_response: waited ${MAX_WAIT_FOR_RESPONSE_S}s past expectedEnd. ` +
+          `vad.isSpeechActive=${cap.isSpeechActive} ` +
+          `lastSpeechWall=${lastActivityAgo} ` +
+          `cb=${cap.callbackCount} ` +
+          `(if lastSpeechWall != "never", the VAD heard SOMETHING but no ` +
+          `speech_start event fired — usually means vad.active stayed true ` +
+          `across the arm boundary)`,
+        );
         result.status = "no_response";
         break;
       }
@@ -362,7 +521,8 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
   }
 
   try { await playPromise; } catch {}
-  cap.stop();
+  if (ownCap) cap.stop();
+  else cap.disarm();  // persistent: VAD keeps running but ignores frames between turns
   if (signal) signal.removeEventListener("abort", onAbort);
   // If we exited because of an abort, raise so the caller can discard
   // any in-flight state instead of writing a half-baked result.
@@ -371,6 +531,34 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
   emit("done");
   if (playbackError) console.warn("playback error:", playbackError);
   return result;
+}
+
+// --- Persistent capture helpers exposed to the orchestrator ---
+
+// Open a capture the orchestrator (app.js Run All) can hand to each
+// runBrowserTurn call so we don't tear down + recreate the audio graph
+// between turns.
+export { startCapture };
+
+// Wait until the persistent capture has been silent (VAD inactive) for
+// `minSilenceMs` continuous ms. Used as a gate between turns so a late
+// response from a previous turn doesn't bleed into the next turn's
+// detection window. Bails if signal is aborted or after timeoutMs.
+export async function waitForSilence(cap, minSilenceMs = 500, timeoutMs = 5000, signal) {
+  const start = performance.now();
+  let quietSince = cap.isSpeechActive ? null : performance.now();
+  while (true) {
+    if (signal?.aborted) return false;
+    if (performance.now() - start > timeoutMs) return false;
+    if (cap.isSpeechActive) {
+      quietSince = null;
+    } else if (quietSince === null) {
+      quietSince = performance.now();
+    } else if (performance.now() - quietSince >= minSilenceMs) {
+      return true;
+    }
+    await new Promise((r) => setTimeout(r, 20));
+  }
 }
 
 // --- Live input meter ---
