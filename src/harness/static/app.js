@@ -779,9 +779,13 @@ async function prefetchAllWavs(turns) {
 }
 
 // Standalone preview — click the turn number in the leftmost column to
-// play just that turn's WAV through the Playback output device. No
-// capture, no test sequence, no measurement; lets the operator hear
-// any turn in isolation. Clicking another number stops the prior one.
+// play just that turn's WAV through the operator's local speakers
+// (the "Monitor" output). Routes through Monitor, NOT the primary
+// output, because the primary is BlackHole 2ch → agent under test —
+// the operator can't hear that locally. Falls back to the browser's
+// default output if no Monitor device is configured. No capture, no
+// test sequence, no measurement; clicking another number stops the
+// prior preview.
 let _previewAudio = null;
 async function previewTurn(turnIdx) {
   const source = getCurrentSourceKey();
@@ -790,7 +794,10 @@ async function previewTurn(turnIdx) {
     return;
   }
   const turn = (state.turns || []).find((t) => t.turn === turnIdx);
-  if (!turn) return;
+  if (!turn) {
+    benchLog(`preview: turn ${turnIdx} not in state.turns (have ${(state.turns||[]).length})`);
+    return;
+  }
 
   if (_previewAudio) {
     try { _previewAudio.pause(); } catch {}
@@ -799,26 +806,37 @@ async function previewTurn(turnIdx) {
   }
 
   const url = `${BASE}api/wav/${source}/${turn.speaker}/${turn.turn}`;
-  const el = new Audio();
-  el.src = url;
+  const el = new Audio(url);
   el.preload = "auto";
 
-  const sinkId = state.browserDevices?.output?.id || "";
-  if (sinkId && el.setSinkId) {
-    try { await el.setSinkId(sinkId); }
-    catch (e) { console.warn("preview setSinkId failed:", e); }
-  }
+  // Prefer the Monitor output (operator's local speakers). Falls back
+  // to the default output if not configured / not yet selected.
+  const monitorId = state.browserDevices?.monitor?.id || "";
+  const sinkLabel = monitorId
+    ? state.browserDevices?.monitor?.label || monitorId
+    : "(default)";
 
   _previewAudio = el;
   const clear = () => { if (_previewAudio === el) _previewAudio = null; };
   el.addEventListener("ended", clear);
-  el.addEventListener("error", clear);
+  el.addEventListener("error", (e) => {
+    benchLog(`preview turn ${turnIdx} error:`, el.error && el.error.message);
+    clear();
+  });
 
+  // setSinkId before play so the first sample lands on the right device.
+  // Errors are logged but non-fatal — we still try to play through the
+  // default sink so the operator gets *some* sound.
+  if (monitorId && el.setSinkId) {
+    try { await el.setSinkId(monitorId); }
+    catch (e) { console.warn(`preview setSinkId(${monitorId}) failed:`, e); }
+  }
+
+  benchLog(`preview turn ${turnIdx} → ${sinkLabel} (${url})`);
   try {
     await el.play();
-    benchLog(`preview turn ${turnIdx}`);
   } catch (e) {
-    benchLog(`preview turn ${turnIdx} failed: ${e.message}`);
+    benchLog(`preview turn ${turnIdx} play() failed: ${e.message}`);
     clear();
   }
 }

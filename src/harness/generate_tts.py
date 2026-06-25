@@ -1337,13 +1337,20 @@ def generate_benchmark1(
     api_key: str,
     force: bool = False,
     skip_existing: bool = False,
+    reprocess_existing: bool = True,
 ) -> dict:
-    """Generate the Benchmark 1 corpus (20 turns, bit-perfect zero gaps).
+    """Generate the Benchmark 1 corpus (21 turns, bit-perfect zero gaps).
 
     Gaps are sized to 800-1500ms per-turn targets, then bit-perfectly zeroed
     with a short edge fade so amplitude-driven EOT detectors see a true
     zero-amplitude silence window. Turn 0 is the opener and keeps its
     natural prosody (no target gap).
+
+    When reprocess_existing=False, existing WAVs are NOT re-passed through
+    _set_gap_duration (which would re-zero the gap and round its measured
+    duration up to the RMS-quantized target). Use this when the keeper WAVs
+    were copied verbatim from a pre-silenced corpus and the goal is to
+    preserve their existing measured zero-run durations.
     """
     turns_dir = BENCHMARK1_OUT_DIR / "turns"
     turns_dir.mkdir(parents=True, exist_ok=True)
@@ -1379,7 +1386,11 @@ def generate_benchmark1(
         }
 
         if wav_path.exists() and not force:
-            if target_gap and category in ("hesitation", "hesitation2", "pause"):
+            if (
+                reprocess_existing
+                and target_gap
+                and category in ("hesitation", "hesitation2", "pause")
+            ):
                 _set_gap_duration(wav_path, target_gap, zero_fill=True)
 
             dur = _wav_duration_ms(wav_path)
@@ -1559,7 +1570,13 @@ def main():
     )
     parser.add_argument(
         "--benchmark1", action="store_true",
-        help="Generate the Benchmark 1 corpus (20 turns, 800-1500ms zero-fill gaps)",
+        help="Generate the Benchmark 1 corpus (21 turns, 800-1500ms zero-fill gaps)",
+    )
+    parser.add_argument(
+        "--no-reprocess-existing", action="store_true",
+        help="With --benchmark1 --skip-existing: do not re-zero existing keeper "
+             "WAVs (useful when they were copied verbatim from a pre-silenced "
+             "source and re-zeroing would round measured durations to the target)",
     )
     args = parser.parse_args()
 
@@ -1574,6 +1591,7 @@ def main():
             api_key=api_key,
             force=args.force,
             skip_existing=args.skip_existing,
+            reprocess_existing=not args.no_reprocess_existing,
         )
     elif args.hesitation2:
         generate_hesitation2(
