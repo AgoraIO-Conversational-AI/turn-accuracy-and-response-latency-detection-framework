@@ -486,7 +486,7 @@ function renderTurnTable() {
         <td>${silenceText}</td>
         <td class="ttfa-cell" id="ttfa-${turn.turn}">—</td>
         <td id="status-${turn.turn}"><span class="status-badge status-pending">pending</span></td>
-        <td><button class="btn-play-single" onclick="playSingle(${turn.turn})">Play</button></td>
+        <td><button class="btn-play-single" title="Plays turn 0 (opener / instructions) first to prime the agent, then resumes from this turn through the end" onclick="playSingle(${turn.turn})">Start</button></td>
       </tr>
     `;
   }
@@ -670,11 +670,7 @@ async function runAll() {
   const turns = state.turns.slice();
   benchLog("run_all start —", turns.length, "turns");
   // Persistent capture: one AudioContext + getUserMedia + ScriptProcessor
-  // for the whole run instead of recreating per turn (was costing 3-7s
-  // of capture→play gap). Each turn re-arms the VAD state. A silence
-  // gate between turns waits for the input to be quiet, which also
-  // suppresses the "previous-turn late response bleeds into next turn"
-  // false-barge-in pattern seen after no_response turns.
+  // for the whole run instead of recreating per turn.
   let runCap = null;
   try {
     const devs = deviceIdsForHarness();
@@ -684,15 +680,18 @@ async function runAll() {
     console.error("[bench] failed to open persistent capture:", e);
     benchLog("falling back to per-turn capture");
   }
+  // Prefetch all turn WAVs into the browser HTTP cache so canplaythrough
+  // doesn't have to wait for Chrome to fetch + decode each WAV
+  // individually. ~600KB each, fired in parallel; the browser handles
+  // the actual concurrency. Doesn't decode here — just primes the
+  // cache so mkAudio's src= request is a cache hit.
+  prefetchAllWavs(turns).catch((e) => console.warn("[bench] prefetch:", e));
   try {
     for (const turn of turns) {
       if (abortCtl.signal.aborted) {
         benchLog("run_all aborted before turn", turn.turn);
         break;
       }
-      // Wait for input silence (or 5 s cap) before arming the next turn,
-      // so a still-playing late TTS from the previous turn doesn't
-      // trigger a false barge-in on turn 0 of this one.
       if (runCap && window.benchHarness.waitForSilence) {
         const settled = await window.benchHarness.waitForSilence(
           runCap, 400, 5000, abortCtl.signal,
@@ -702,7 +701,6 @@ async function runAll() {
       if (abortCtl.signal.aborted) break;
       await runBrowserTurnFlow(turn, abortCtl.signal, runId, runCap);
       if (abortCtl.signal.aborted) break;
-      // No inter-turn breather — back-to-back per user request.
     }
   } finally {
     if (runCap) {
@@ -751,26 +749,113 @@ function resetRun() {
   send({ action: "reset" });
 }
 
+// Prime the browser HTTP cache with all turn WAVs in parallel. The
+// `<audio>.src=` fetch later in mkAudio will then hit the cache and
+// canplaythrough should fire fast instead of stalling 3-11 s. We use
+// the same URL shape the per-turn code uses so cache keys match.
+async function prefetchAllWavs(turns) {
+  if (!turns?.length) return;
+  const source = getCurrentSourceKey();
+  if (!source) return;
+  const t0 = performance.now();
+  const fetches = turns.map((turn) => {
+    const url = `${BASE}api/wav/${source}/${turn.speaker}/${turn.turn}`;
+    // cache: 'force-cache' so the browser actually stores it rather
+    // than discarding immediately after the response is consumed.
+    return fetch(url, { cache: "force-cache" })
+      .then((r) => r.arrayBuffer())  // drain so the body completes
+      .then(() => null)
+      .catch((e) => {
+        console.warn(`[bench] prefetch failed for turn ${turn.turn}:`, e);
+        return null;
+      });
+  });
+  // Don't await — let prefetch proceed in background while turn 0
+  // runs. We just kick off the requests synchronously.
+  Promise.all(fetches).then(() => {
+    const dt = (performance.now() - t0).toFixed(0);
+    benchLog(`prefetched ${turns.length} WAVs in ${dt}ms (background)`);
+  });
+}
+
+// "Start" per turn = prime the agent with turn 0 (the opener that
+// explains the test rules to the agent), then resume from this turn
+// to the end of the corpus. Equivalent to Run All but skipping turns
+// 1..(N-1). Turn 0 itself is played in both cases so the agent
+// always hears the instructions.
 async function playSingle(turnIdx) {
   if (!isBrowserMode()) {
     send({ action: "run_single", turn: turnIdx });
     return;
   }
   if (!ensureDevicesConfigured()) return;
-  const turn = state.turns.find((t) => t.turn === turnIdx);
-  if (!turn) return;
+  const startTurn = state.turns.find((t) => t.turn === turnIdx);
+  if (!startTurn) return;
+
+  // Build the sequence: turn 0 (if not already turnIdx) then turnIdx..end.
+  const turn0 = state.turns.find((t) => t.turn === 0);
+  const allFromStart = state.turns
+    .filter((t) => t.turn >= turnIdx)
+    .sort((a, b) => a.turn - b.turn);
+  const sequence =
+    turnIdx === 0 || !turn0
+      ? allFromStart
+      : [turn0, ...allFromStart];
+
   abortCurrentRun("new playSingle");
   const runId = newRunId();
   const abortCtl = new AbortController();
   state.abortCtl = abortCtl;
+  state.batchRunning = true;
   state.running = true;
+  state.stopRequested = false;
+  state.results = {};
+  resetTableStatuses();
+  renderSummary({});
+  updateSummaryRow();
   updateControls();
-  benchLog("playSingle turn", turnIdx);
-  await runBrowserTurnFlow(turn, abortCtl.signal, runId);
+  benchLog(
+    `Start from turn ${turnIdx} — sequence: ${sequence.map((t) => t.turn).join(", ")}`,
+  );
+
+  let runCap = null;
+  try {
+    const devs = deviceIdsForHarness();
+    runCap = await window.benchHarness.startCapture(devs.input);
+    benchLog(`persistent capture opened (sr=${runCap.actualSampleRate})`);
+  } catch (e) {
+    console.error("[bench] failed to open persistent capture:", e);
+    benchLog("falling back to per-turn capture");
+  }
+  prefetchAllWavs(sequence).catch((e) => console.warn("[bench] prefetch:", e));
+  try {
+    for (const turn of sequence) {
+      if (abortCtl.signal.aborted) {
+        benchLog("aborted before turn", turn.turn);
+        break;
+      }
+      if (runCap && window.benchHarness.waitForSilence) {
+        const settled = await window.benchHarness.waitForSilence(
+          runCap, 400, 5000, abortCtl.signal,
+        );
+        if (!settled) benchLog(`turn ${turn.turn} pre-arm silence gate timed out`);
+      }
+      if (abortCtl.signal.aborted) break;
+      await runBrowserTurnFlow(turn, abortCtl.signal, runId, runCap);
+      if (abortCtl.signal.aborted) break;
+    }
+  } finally {
+    if (runCap) {
+      try { runCap.stop(); } catch {}
+      benchLog("persistent capture closed");
+    }
+  }
   if (state.abortCtl === abortCtl) state.abortCtl = null;
+  state.batchRunning = false;
   state.running = false;
   state.currentTurn = null;
   updateControls();
+  benchLog("Start sequence done");
 }
 
 function ensureDevicesConfigured() {

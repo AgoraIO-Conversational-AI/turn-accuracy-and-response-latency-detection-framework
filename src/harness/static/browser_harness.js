@@ -7,11 +7,11 @@
 // --- Constants (mirror Python harness) ---
 export const VAD_RATE = 16000;
 export const VAD_FRAME = 512;          // 32 ms @ 16 kHz
-export const VAD_RMS_THRESHOLD = 0.01;
+export const VAD_RMS_THRESHOLD = 0.003;
 export const VAD_MIN_SILENCE_MS = 300;
 export const RESPONSE_SILENCE_TIMEOUT_S = 1.5;
 export const BARGE_IN_SILENCE_TIMEOUT_S = 3.0;
-export const MAX_WAIT_FOR_RESPONSE_S = 10.0;
+export const MAX_WAIT_FOR_RESPONSE_S = 8.0;
 
 // --- Device enumeration ---
 
@@ -150,9 +150,22 @@ async function startCapture(inputDeviceId) {
   let firstSpeechWall = null;     // performance.now() at first speech_start frame
   let lastSpeechWall = null;      // performance.now() at most recent speech_active frame
   let callbackCount = 0;          // since arm — diagnoses batching
+  // Peak RMS observed since arm — answers "was audio arriving at all?"
+  // independently of whether it crossed the VAD threshold. Distinguishes
+  // true silence (peak ≈ 0) from below-threshold audio (peak ~0.001-0.009)
+  // from clean speech (peak above VAD_RMS_THRESHOLD=0.01) when the turn
+  // ends in no_response.
+  let peakRmsThisTurn = 0;
 
   proc.onaudioprocess = (ev) => {
     const data = ev.inputBuffer.getChannelData(0);
+    // Single pass RMS for the whole buffer — cheap, and gives us a
+    // per-callback aggregate without re-walking the samples.
+    let sumSq = 0;
+    for (let i = 0; i < data.length; i++) sumSq += data[i] * data[i];
+    const rms = Math.sqrt(sumSq / data.length);
+    if (rms > peakRmsThisTurn) peakRmsThisTurn = rms;
+
     const events = vad.processChunk(data);
     callbackCount++;
     for (const e of events) {
@@ -188,6 +201,7 @@ async function startCapture(inputDeviceId) {
     firstSpeechWall = null;
     lastSpeechWall = null;
     callbackCount = 0;
+    peakRmsThisTurn = 0;
   };
   // disarm is a no-op now (VAD keeps running). Kept on the API for
   // backwards-compatibility with the runBrowserTurn caller.
@@ -230,6 +244,12 @@ async function startCapture(inputDeviceId) {
     get isSpeechActive() {
       return vad.active;
     },
+    // Loudest RMS the input has shown since the most recent
+    // armForTurn(). Used by the no_response diagnostic to tell true
+    // silence from below-threshold audio.
+    get peakRms() {
+      return peakRmsThisTurn;
+    },
     get callbackCount() {
       return callbackCount;
     },
@@ -248,40 +268,70 @@ async function startCapture(inputDeviceId) {
 // setSinkId. Returns a controller {startWall, ended (Promise), stop()}.
 // stop() halts playback and resolves `ended` immediately so a poll
 // loop awaiting it can move on.
-async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBeforePlay) {
-  const mkAudio = async (sinkId) => {
+async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBeforePlay, log) {
+  const tag = (label, t0) => `${label}=${(performance.now() - t0).toFixed(0)}ms`;
+  const t_call = performance.now();
+  const _log = log || (() => {});
+
+  // mkAudio: create the Audio element, point at WAV. Cheap, sync-ish.
+  const mkAudio = async (sinkId, kind) => {
+    const t_mk = performance.now();
     const el = new Audio();
     el.preload = "auto";
     el.src = wavUrl;
     el.crossOrigin = "anonymous";
+    const dt_create = performance.now() - t_mk;
+    let dt_sink = 0;
     if (sinkId && el.setSinkId) {
+      const t_sink = performance.now();
       try { await el.setSinkId(sinkId); }
-      catch (e) { console.warn("setSinkId failed:", e); }
+      catch (e) { console.warn(`setSinkId(${kind}) failed:`, e); }
+      dt_sink = performance.now() - t_sink;
     }
+    _log(`  ${kind}: create=${dt_create.toFixed(0)}ms setSinkId=${dt_sink.toFixed(0)}ms`);
     return el;
   };
 
-  const primary = await mkAudio(primaryOutputId);
+  const t_primary = performance.now();
+  const primary = await mkAudio(primaryOutputId, "primary");
+  const t_after_primary = performance.now();
+  _log(`  primary ready t+${(t_after_primary - t_call).toFixed(0)}ms`);
+
   const monitor =
     monitorOutputId && monitorOutputId !== primaryOutputId
-      ? await mkAudio(monitorOutputId)
+      ? await mkAudio(monitorOutputId, "monitor")
       : null;
+  const t_after_monitor = performance.now();
+  if (monitor) _log(`  monitor ready t+${(t_after_monitor - t_call).toFixed(0)}ms`);
 
-  await new Promise((resolve) => {
-    if (primary.readyState >= 4) return resolve();
-    primary.addEventListener("canplaythrough", resolve, { once: true });
-    primary.addEventListener("error", resolve, { once: true });
+  // canplaythrough wait — usually the variable cost on first turn or
+  // big WAVs. We treat 'error' the same as ready so a broken decode
+  // doesn't hang us forever.
+  const t_pre_cpt = performance.now();
+  const cptResult = await new Promise((resolve) => {
+    if (primary.readyState >= 4) return resolve("already_ready");
+    primary.addEventListener("canplaythrough", () => resolve("canplaythrough"), { once: true });
+    primary.addEventListener("error", () => resolve("error"), { once: true });
   });
+  const dt_cpt = performance.now() - t_pre_cpt;
+  _log(`  ${cptResult} after ${dt_cpt.toFixed(0)}ms (total setup ${(performance.now() - t_call).toFixed(0)}ms)`);
 
   let endedResolve;
   const ended = new Promise((resolve) => { endedResolve = resolve; });
   primary.addEventListener("ended", () => endedResolve(), { once: true });
+  // The Audio element's own 'playing' event fires when output actually
+  // begins. Surfacing it lets us see browser-side play scheduling vs.
+  // when we called .play().
+  primary.addEventListener("playing", () => {
+    _log(`  Audio element 'playing' event fired (browser confirms playback) t+${(performance.now() - t_call).toFixed(0)}ms`);
+  }, { once: true });
   // Arm immediately before play() so startWall and the VAD's
   // "first speech since arm" clock align to the same instant.
   if (typeof armBeforePlay === "function") {
     try { armBeforePlay(); } catch (e) { console.warn("armBeforePlay threw:", e); }
   }
   const startWall = performance.now();
+  _log(`  → primary.play() called at t+${(startWall - t_call).toFixed(0)}ms`);
   primary.play();
   if (monitor) monitor.play();
   // Cleanup releases the underlying MediaElement audio node + decoder
@@ -317,7 +367,14 @@ async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBefore
 // caller can identify orphan completions and discard them.
 // Returns the result payload that POST /api/results/submit expects.
 export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase, signal, opts) {
-  const log = (...a) => console.log(`[harness#turn${turn.turn}]`, ...a);
+  // Every log line shows time since *runBrowserTurn was entered* so the
+  // operator can spot delays between steps. Also keeps the turn id in
+  // every line for grep-ability.
+  const t_turn_start = performance.now();
+  const log = (...a) => {
+    const ts = `+${(performance.now() - t_turn_start).toFixed(0)}ms`;
+    console.log(`[harness#turn${turn.turn} ${ts}]`, ...a);
+  };
   const throwIfAborted = () => {
     if (signal && signal.aborted) {
       const err = new Error("aborted");
@@ -357,8 +414,9 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
     throwIfAborted();
   }
 
-  emit("playing");
-  log(`playing wav=${wavUrl} expectedEnd=${expectedEndMs}ms`);
+  emit("preparing");
+  log(`requesting playback: wav=${wavUrl} expectedEnd=${expectedEndMs}ms`);
+  log(`setup begins (mkAudio → setSinkId → canplaythrough → play)`);
   let playbackEndWall = null;
   let playbackError = null;
   let playController = null;
@@ -371,10 +429,18 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
       // mic heard during the setSinkId / canplaythrough wait is
       // leftover from prior turns and is correctly ignored.
       () => cap.armForTurn(),
+      log,
     );
+    // play() has been called and the audio element will start very
+    // soon (browser-side scheduling — usually a few ms). This is the
+    // "actual playing" emission point, distinct from the upstream
+    // 'preparing' phase that fired when we requested playback.
+    emit("playing");
+    log(`PLAYING — primary.play() returned; expect agent response soon`);
   } catch (e) {
     playbackError = e;
     playbackEndWall = performance.now();
+    log(`startPlayback threw: ${e?.message || e}`);
   }
   const playPromise = playController
     ? playController.ended.then(() => { playbackEndWall = performance.now(); })
@@ -474,21 +540,32 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
     if (pastExpectedEnd && firstSpeechAudioMs === null) {
       const sinceEnd = elapsedS - expectedEndMs / 1000;
       if (sinceEnd > MAX_WAIT_FOR_RESPONSE_S) {
-        // Distinguish "agent stayed silent" from "agent spoke but
-        // the VAD missed the leading edge" so we can debug spurious
-        // no_response classifications.
+        // Three-way classification of why no audio crossed the VAD
+        // threshold:
+        //   peakRms ≈ 0           → true silence, input mic dead / agent disconnected
+        //   peakRms < threshold   → audio arrived but below 0.01 — TTS too quiet, gain too low, routing OK
+        //   peakRms ≥ threshold + no speech_start → real logic bug; investigate
+        const peak = cap.peakRms ?? 0;
+        const threshold = VAD_RMS_THRESHOLD;
+        let interpretation;
+        if (peak < 0.0005) {
+          interpretation = "TRUE SILENCE (no audio at all — agent dead/disconnected or mic routing broken)";
+        } else if (peak < threshold) {
+          interpretation = `AUDIO PRESENT BUT BELOW VAD THRESHOLD (peak ${peak.toFixed(4)} < ${threshold}). Boost agent TTS volume or lower threshold.`;
+        } else {
+          interpretation = `audio crossed threshold (peak ${peak.toFixed(4)}) but no speech_start — possible logic bug, investigate.`;
+        }
         const sawAnyActivity = cap.lastSpeechWallMs != null;
         const lastActivityAgo = sawAnyActivity
           ? `${(performance.now() - cap.lastSpeechWallMs).toFixed(0)}ms ago`
           : "never";
         log(
           `no_response: waited ${MAX_WAIT_FOR_RESPONSE_S}s past expectedEnd. ` +
+          `peakRms=${peak.toFixed(4)} ` +
           `vad.isSpeechActive=${cap.isSpeechActive} ` +
           `lastSpeechWall=${lastActivityAgo} ` +
           `cb=${cap.callbackCount} ` +
-          `(if lastSpeechWall != "never", the VAD heard SOMETHING but no ` +
-          `speech_start event fired — usually means vad.active stayed true ` +
-          `across the arm boundary)`,
+          `→ ${interpretation}`,
         );
         result.status = "no_response";
         break;

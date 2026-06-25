@@ -16,9 +16,10 @@ env/
 # Environment variables
 .env
 
-# Generated output (keep TTS_Turns for portability)
+# Generated output (keep TTS_Turns + the derived silenced variant for portability)
 out/*
 !out/TTS_Turns/
+!out/TTS_Turns_Silenced/
 diarize_output/
 
 # OS files

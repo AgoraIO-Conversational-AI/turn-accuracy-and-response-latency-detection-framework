@@ -35,6 +35,18 @@ SOURCES = {
         "index": OUT_DIR / "TTS_Turns" / "turns_index.json",
         "turns_dir": OUT_DIR / "TTS_Turns" / "turns",
     },
+    "tts_turns_silenced": {
+        # Same corpus + index timing as tts_turns, but every declared
+        # hesitation/pause window has been bit-perfectly zeroed (the
+        # interior is integer-0, with a 3 ms linear fade at edges to
+        # avoid a click). Lets you compare STT-driven EOT against
+        # amplitude-driven EOT — when the corpus is genuinely silent
+        # during the gap, the STT-side turn-end logic is the only
+        # variable left.
+        "label": "TTS Turn Accuracy Silenced",
+        "index": OUT_DIR / "TTS_Turns_Silenced" / "turns_index.json",
+        "turns_dir": OUT_DIR / "TTS_Turns_Silenced" / "turns",
+    },
     "tts_hesitation2": {
         "label": "TTS Hesitation 2",
         "index": OUT_DIR / "TTS_Hesitation2" / "turns_index.json",
