@@ -347,21 +347,22 @@ SENTENCES_BENCHMARK1 = [
         "display_text": "I'm going to say some random things to see how you respond. Please keep your responses to under ten words.",
         "expected_complete": True,
     },
-    # 1 — pause 900ms (billing amount)
+    # 1 — pause 900ms (billing amount; semantically incomplete after gap)
     {
         "voice": 0,
         "category": "pause",
-        "tts_text": "Yeah, I got a bill for like [pause] [pause] [short pause] six hundred and eighty dollars and I can't pay that all today.",
-        "display_text": "Yeah, I got a bill for like... six hundred and eighty dollars and I can't pay that all today.",
+        "tts_text": "Yeah, I got a bill for like [pause] [pause] six hundred and eighty dollars and I can't pay that all today.",
+        "display_text": "Yeah, I got a bill for like six hundred and eighty dollars and I can't pay that all today.",
         "expected_complete": False,
         "target_gap_ms": 900,
     },
-    # 2 — hesitation 1000ms (name + date of birth)
+    # 2 — hesitation 1000ms (name + DoB; semantically ambiguous after gap —
+    #   "Michael Turner" alone is a plausible answer to "your name?")
     {
         "voice": 1,
         "category": "hesitation",
-        "tts_text": "Michael Turner, [hesitation] [hesitation] [pause] um, April fourteenth, nineteen eighty five.",
-        "display_text": "Michael Turner... um, April 14, 1985.",
+        "tts_text": "Michael Turner, [hesitation] [hesitation] [pause] April fourteenth, nineteen eighty five.",
+        "display_text": "Michael Turner, April 14, 1985.",
         "expected_complete": False,
         "target_gap_ms": 1000,
     },
@@ -373,12 +374,13 @@ SENTENCES_BENCHMARK1 = [
         "display_text": "Payment plan.",
         "expected_complete": True,
     },
-    # 4 — hesitation2 900ms (prosody-only)
+    # 4 — hesitation 900ms (semantically ambiguous after gap —
+    #   "Ask them" is a plausible-sounding fragment in isolation)
     {
         "voice": 3,
-        "category": "hesitation2",
+        "category": "hesitation",
         "tts_text": "Ask them [hesitation] [hesitation] [pause] why insurance didn't cover it.",
-        "display_text": "Ask them [hesitation] [hesitation] [pause] why insurance didn't cover it.",
+        "display_text": "Ask them, why insurance didn't cover it.",
         "expected_complete": False,
         "target_gap_ms": 900,
     },

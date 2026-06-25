@@ -288,6 +288,57 @@ tbody tr.barge-in {
   color: #c5d1ff;
 }
 
+/* Audio Devices + Turn-types key side-by-side under #controls. */
+.config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+.config-grid > details {
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+dl.cat-key {
+  margin: 6px 0 0 0;
+  font-size: 0.85rem;
+  color: #c0c0d8;
+}
+dl.cat-key dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-weight: 600;
+}
+dl.cat-key dt:first-child {
+  margin-top: 0;
+}
+dl.cat-key dd {
+  margin: 2px 0 0 0;
+  color: #9090b0;
+  line-height: 1.35;
+}
+dl.cat-key em {
+  color: #8a8aa8;
+  font-style: italic;
+  font-size: 0.9em;
+}
+dl.cat-key code {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 0.8em;
+  color: #c5d1ff;
+  font-weight: 400;
+}
+
 .btn-play-single:hover {
   background: #3a3a5e;
   color: #e0e0e0;

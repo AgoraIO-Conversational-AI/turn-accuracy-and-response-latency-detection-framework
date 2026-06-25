@@ -70,10 +70,32 @@
       <button id="btn-reset" class="btn">Reset</button>
     </div>
 
-    <details id="device-config" open>
-      <summary>Audio Devices</summary>
-      <div id="device-list"></div>
-    </details>
+    <div class="config-grid">
+      <details id="device-config" open>
+        <summary>Audio Devices</summary>
+        <div id="device-list"></div>
+      </details>
+
+      <details id="category-key" open>
+        <summary>Turn types</summary>
+        <dl class="cat-key">
+          <dt><span class="category-badge cat-normal">normal</span></dt>
+          <dd>Semantically complete.</dd>
+
+          <dt><span class="category-badge cat-pause">pause</span></dt>
+          <dd>Semantically incomplete. <code>[pause]</code> Semantically complete</dd>
+
+          <dt><span class="category-badge cat-hesitation">hesitation</span></dt>
+          <dd>Semantically ambiguous. <code>[hesitation] [pause]</code> Semantically complete</dd>
+
+          <dt><span class="category-badge cat-hesitation2">hesitation2</span></dt>
+          <dd>Semantically ambiguous. <code>[hesitation]</code> + measured silence. Semantically complete</dd>
+
+          <dt><span class="category-badge cat-ambiguous">ambiguous</span></dt>
+          <dd>Semantically incomplete but prosody marks end.</dd>
+        </dl>
+      </details>
+    </div>
   </section>
 
   <section id="summary">
