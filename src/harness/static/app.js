@@ -795,28 +795,50 @@ function resetRun() {
 // `<audio>.src=` fetch later in mkAudio will then hit the cache and
 // canplaythrough should fire fast instead of stalling 3-11 s. We use
 // the same URL shape the per-turn code uses so cache keys match.
+// Browsers cap per-host concurrent connections (typically 6). Firing 21
+// prefetches at once saturates the pool and queues the turn-being-played
+// WAV behind them — that's the 10+ second wait before turn 0 started
+// playing in earlier versions. Throttling to a small pool leaves room
+// for the audio element + decodeWavTiming() fetches that the active
+// turn needs immediately.
+const PREFETCH_CONCURRENCY = 2;
+
 async function prefetchAllWavs(turns) {
   if (!turns?.length) return;
   const source = getCurrentSourceKey();
   if (!source) return;
+  // Skip the first turn — it's about to be fetched by the audio element
+  // anyway. Including it just adds connection-pool contention.
+  const queue = turns.slice(1).map((turn) => ({
+    turn,
+    url: `${BASE}api/wav/${source}/${turn.speaker}/${turn.turn}`,
+  }));
+  if (!queue.length) return;
   const t0 = performance.now();
-  const fetches = turns.map((turn) => {
-    const url = `${BASE}api/wav/${source}/${turn.speaker}/${turn.turn}`;
-    // cache: 'force-cache' so the browser actually stores it rather
-    // than discarding immediately after the response is consumed.
-    return fetch(url, { cache: "force-cache" })
-      .then((r) => r.arrayBuffer())  // drain so the body completes
-      .then(() => null)
-      .catch((e) => {
-        console.warn(`[bench] prefetch failed for turn ${turn.turn}:`, e);
-        return null;
-      });
-  });
+
+  let i = 0;
+  const next = async () => {
+    while (i < queue.length) {
+      const my = queue[i++];
+      try {
+        // cache: 'force-cache' so the browser actually stores it rather
+        // than discarding immediately after the response is consumed.
+        const r = await fetch(my.url, { cache: "force-cache" });
+        await r.arrayBuffer();  // drain so the body completes
+      } catch (e) {
+        console.warn(`[bench] prefetch failed for turn ${my.turn.turn}:`, e);
+      }
+    }
+  };
+  const workers = Array.from(
+    { length: Math.min(PREFETCH_CONCURRENCY, queue.length) },
+    next,
+  );
   // Don't await — let prefetch proceed in background while turn 0
-  // runs. We just kick off the requests synchronously.
-  Promise.all(fetches).then(() => {
+  // runs. We just kick off the workers synchronously.
+  Promise.all(workers).then(() => {
     const dt = (performance.now() - t0).toFixed(0);
-    benchLog(`prefetched ${turns.length} WAVs in ${dt}ms (background)`);
+    benchLog(`prefetched ${queue.length} WAVs in ${dt}ms (background, conc=${PREFETCH_CONCURRENCY})`);
   });
 }
 
