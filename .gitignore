@@ -16,9 +16,13 @@ env/
 # Environment variables
 .env
 
-# Generated output (keep Benchmark_1 + legacy TTS_Turns variants for portability)
+# Debug docs that contain real API keys — never commit
+claude_turn_debug.md
+
+# Generated output (keep Benchmark_1 paired sources + legacy TTS_Turns variants for portability)
 out/*
-!out/Benchmark_1/
+!out/Benchmark_1_Original/
+!out/Benchmark_1_Zeroed/
 !out/TTS_Turns/
 !out/TTS_Turns_Silenced/
 diarize_output/

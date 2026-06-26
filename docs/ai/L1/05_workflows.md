@@ -65,9 +65,12 @@ python -m src.harness.generate_tts
 python -m src.harness.generate_tts --hesitation2
 ```
 
-Output:
-- `--benchmark1`: `out/Benchmark_1/turns_index.json` + `out/Benchmark_1/turns/speaker{0-4}/turn_NNN.wav`
-- default (legacy): `out/TTS_Turns/turns_index.json` + `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav`
+Output (`--benchmark1` produces **two paired corpora** from the same generated audio):
+- `out/Benchmark_1_Original/turns_index.json` + `out/Benchmark_1_Original/turns/speaker{0-4}/turn_NNN.wav` — raw ElevenLabs WAVs, natural low-amplitude content inside the test-gap window.
+- `out/Benchmark_1_Zeroed/turns_index.json` + `out/Benchmark_1_Zeroed/turns/speaker{0-4}/turn_NNN.wav` — same WAVs with the test-gap window written to bit-perfect zero (3 ms linear edge fade).
+- legacy: `out/TTS_Turns/turns_index.json` + `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav`.
+
+Both Benchmark 1 sources are exposed in the UI Source dropdown (`benchmark_1_zeroed`, `benchmark_1_original`). Zeroed is the default; switch to Original to test agents whose EOT relies on prosodic / energy cues rather than a true zero-amplitude floor.
 
 ### Turn type semantics (rulebook)
 
@@ -84,15 +87,42 @@ The agent under test never interrupts during the silence portion of any gap-bear
 
 Older versions of this corpus also had a `hesitation2` category for prosody-only + precise-silence-injected gaps. We no longer inject silence ourselves on new turns (whatever ElevenLabs renders is what gets zeroed in place), so `hesitation2` was collapsed into `hesitation`.
 
-### Benchmark 1 corpus (default source)
+### Benchmark 1 corpus (default source — paired Zeroed + Original)
 
-21 turns (0-20). Every turn is **freshly synthesized through ElevenLabs**; no WAVs are copied from the legacy `TTS_Turns_Silenced` corpus anymore. Texts and voice assignments live in `SENTENCES_BENCHMARK1` (`src/harness/generate_tts.py`).
+21 turns (0-20). Every turn is **freshly synthesized through ElevenLabs**; no WAVs are copied from the legacy `TTS_Turns_Silenced` corpus. Texts and voice assignments live in `SENTENCES_BENCHMARK1` (`src/harness/generate_tts.py`). The generator produces **two paired sources from the same audio**:
 
-Category mix (current): normal (5), pause (4), hesitation (9), ambiguous (3).
+| Source | What's in the test-gap window | When to use |
+|---|---|---|
+| `benchmark_1_zeroed` | Bit-perfect int16-zero, with 3 ms linear edge fade | Default. Amplitude-driven EOT detectors see a true zero-amplitude window. |
+| `benchmark_1_original` | Natural ElevenLabs content — quiet decay tails, background noise | EOT detectors that rely on prosodic / energy cues rather than a hard zero floor. |
 
-Each gap-bearing turn's silence is **whatever ElevenLabs natural rendering produces**, then bit-perfectly zeroed in place. We pick tag patterns (see below) that land the silence in the 700-1500 ms design range; current corpus distribution is 860, 860, 982, 1000, 1000, 1020, 1040, 1100, 1140, 1220, 1240, 1400, 1500 ms.
+**The two sources share the same test-gap window.** Detection runs ONCE on the Original WAV (via `_analyze_speech_boundaries(min_gap_ms=150)`); the resulting `[at_ms, at_ms+duration_ms)` window is written into **both** indexes as `hesitations[0]` and is the canonical paired test-gap value. Zeroed entries also carry a `zero_run_ms` field with the actual contiguous int16-zero run length — **diagnostic only**, never used as the paired duration. Never re-detect after zeroing.
 
-Audio: 48 kHz mono 16-bit PCM. Every pause / hesitation silence region is **bit-perfectly zero** with a 3 ms linear fade at each edge. Reported `hesitations.duration_ms` is the **actual measured zero-run length** in the WAV — never padded, never rounded to a target.
+The UI "Gap ms" column shows `hesitations[0].duration_ms` (the detector window), identical between the two sources for any given turn.
+
+Category mix: normal (5), pause (4), hesitation (9), ambiguous (3). Audio: 48 kHz mono 16-bit PCM.
+
+### Tuning the test-gap distribution
+
+The current distribution (after the most recent regen) is `540, 580, 840, 920, 1080, 1120, 1160, 1260, 1320, 1680, 2060, 2100, 2440 ms`. Several values fall outside the 700-1500 ms design band — ElevenLabs is non-deterministic and individual rolls can drift wide. To tighten an outlier turn:
+
+1. Probe the candidate text first:
+   ```bash
+   python scripts/tts_probe.py --voice <N> --n 3 --text "<sentence with tags>"
+   ```
+2. Edit the entry in `SENTENCES_BENCHMARK1` if you want to change the text/tags. (If you just want to re-roll the same text and hope for a different render, skip this step.)
+3. Delete the WAV from **both** paired directories so the generator re-synthesizes and re-pairs:
+   ```bash
+   rm out/Benchmark_1_Original/turns/speaker<N>/turn_<NNN>.wav
+   rm out/Benchmark_1_Zeroed/turns/speaker<N>/turn_<NNN>.wav
+   ```
+4. Re-run:
+   ```bash
+   python -m src.harness.generate_tts --benchmark1 --skip-existing
+   ```
+5. Restart pm2 so the index changes go live.
+
+The detector window is a multiple of `RMS_WINDOW_MS = 20` ms by construction (RMS scanner walks 20 ms windows), so even the Original-source values look round.
 
 ### Adding a new TTS turn — recipe
 

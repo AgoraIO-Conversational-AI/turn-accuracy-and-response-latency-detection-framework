@@ -28,6 +28,7 @@ import argparse
 import base64
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -801,6 +802,50 @@ def _zero_out_gap(
     }
 
 
+def _zero_specified_gap(
+    wav_path: Path, start_ms: int, end_ms: int, fade_ms: int = 3,
+) -> dict | None:
+    """Zero a SPECIFIC [start_ms, end_ms] window in a WAV. No re-detection.
+
+    Used by the paired Original/Zeroed Benchmark 1 pipeline — the test-gap
+    window is detected once on the Original WAV, then this helper applies
+    the same window to the Zeroed copy. Reuse-only; never re-detect.
+
+    Returns the zeroed region descriptor (using the input start/end_ms,
+    not a re-measurement), or None if the window was empty.
+    """
+    data, sr = sf.read(str(wav_path), dtype="float32")
+    if data.ndim > 1:
+        data = data[:, 0]
+
+    start = int(sr * start_ms / 1000)
+    end = int(sr * end_ms / 1000)
+    start = max(0, start)
+    end = min(len(data), end)
+    if end <= start:
+        return None
+
+    data[start:end] = 0.0
+
+    fade_samples = max(1, int(sr * fade_ms / 1000))
+    pre_start = max(0, start - fade_samples)
+    if start - pre_start > 0:
+        ramp = np.linspace(1.0, 0.0, start - pre_start).astype("float32")
+        data[pre_start:start] *= ramp
+    post_end = min(len(data), end + fade_samples)
+    if post_end - end > 0:
+        ramp = np.linspace(0.0, 1.0, post_end - end).astype("float32")
+        data[end:post_end] *= ramp
+
+    sf.write(str(wav_path), data, sr, subtype="PCM_16")
+
+    return {
+        "start_ms": start_ms,
+        "end_ms": end_ms,
+        "duration_ms": end_ms - start_ms,
+    }
+
+
 def _find_zero_run(wav_path: Path, min_ms: int = 50) -> dict | None:
     """Find the longest contiguous run of bit-exact zero samples in the WAV.
 
@@ -1330,7 +1375,32 @@ def generate_hesitation2(
     return index
 
 
-BENCHMARK1_OUT_DIR = BASE_DIR / "out" / "Benchmark_1"
+BENCHMARK1_ORIG_DIR = BASE_DIR / "out" / "Benchmark_1_Original"
+BENCHMARK1_ZEROED_DIR = BASE_DIR / "out" / "Benchmark_1_Zeroed"
+
+# Min gap length the detector reports for Benchmark 1 turns. Same value
+# is used as the test-gap window in BOTH paired sources — never
+# re-detected after zeroing.
+BENCHMARK1_MIN_GAP_MS = 150
+
+
+def _build_turn_entry(sentence: dict, turn_num: int) -> dict:
+    """Empty turn-entry skeleton shared by both Original and Zeroed indexes."""
+    text = sentence["text"]
+    return {
+        "turn": turn_num,
+        "speaker": sentence["voice"],
+        "start_ms": 0,
+        "end_ms": 0,
+        "duration_ms": 0,
+        "text": text,
+        "word_count": len(text.split()),
+        "hesitations": [],
+        "max_hesitation_ms": 0,
+        "category": sentence["category"],
+        "expected_complete": sentence["expected_complete"],
+        "voice_id": VOICES[sentence["voice"]],
+    }
 
 
 def generate_benchmark1(
@@ -1339,235 +1409,199 @@ def generate_benchmark1(
     skip_existing: bool = False,
     reprocess_existing: bool = True,
 ) -> dict:
-    """Generate the Benchmark 1 corpus (21 turns, bit-perfect zero gaps).
+    """Generate the paired Benchmark 1 corpora.
 
-    Gaps are sized to 800-1500ms per-turn targets, then bit-perfectly zeroed
-    with a short edge fade so amplitude-driven EOT detectors see a true
-    zero-amplitude silence window. Turn 0 is the opener and keeps its
-    natural prosody (no target gap).
+    Produces two sources from the SAME generated audio:
 
-    When reprocess_existing=False, existing WAVs are NOT re-passed through
-    _set_gap_duration (which would re-zero the gap and round its measured
-    duration up to the RMS-quantized target). Use this when the keeper WAVs
-    were copied verbatim from a pre-silenced corpus and the goal is to
-    preserve their existing measured zero-run durations.
+    - out/Benchmark_1_Original/  — raw ElevenLabs WAVs (post-transcode,
+      pre-zero). Natural low-amplitude content sits inside the gap window.
+    - out/Benchmark_1_Zeroed/    — same WAVs with the gap window written
+      to bit-perfect zero (3 ms linear edge fade). Same window position
+      and duration as Original.
+
+    Key invariant: the test-gap window is detected ONCE on the Original
+    WAV via _analyze_speech_boundaries(min_gap_ms=BENCHMARK1_MIN_GAP_MS).
+    The detector boundaries (always multiples of RMS_WINDOW_MS = 20 ms)
+    are written into both indexes as hesitations.at_ms / duration_ms.
+    Never re-detect after zeroing — the Zeroed source's zero-run length
+    may differ slightly from the detector window, but the canonical paired
+    test gap is the detector window. Zeroed entries also carry
+    `zero_run_ms` as a diagnostic for the actual contiguous int16-zero
+    run, which has no role in paired comparisons.
+
+    Sources share `voice_id`, `voice` index, `category`, and `text`. The
+    only field that differs between paired entries is the on-disk
+    duration (a few ms shift can occur if the WAV files are re-encoded
+    differently) and the optional `zero_run_ms` field on Zeroed.
+
+    Turn 0 is the operator opener — no test-gap is computed for it
+    regardless of detected silences (so the opener is bit-identical
+    between Original and Zeroed and operator instructions land intact).
     """
-    turns_dir = BENCHMARK1_OUT_DIR / "turns"
-    turns_dir.mkdir(parents=True, exist_ok=True)
+    for d in (BENCHMARK1_ORIG_DIR, BENCHMARK1_ZEROED_DIR):
+        (d / "turns").mkdir(parents=True, exist_ok=True)
 
-    turns_data = []
+    turns_orig = []
+    turns_zeroed = []
 
     for turn_num, sentence in enumerate(SENTENCES_BENCHMARK1):
         speaker = sentence["voice"]
         voice_id = VOICES[speaker]
         category = sentence["category"]
-        # Single `text` field used both as tts_text and display_text;
-        # operators see verbatim what ElevenLabs gets.
         text = sentence["text"]
-        expected_complete = sentence["expected_complete"]
-        target_gap = sentence.get("target_gap_ms", 0)
 
-        speaker_dir = turns_dir / f"speaker{speaker}"
-        speaker_dir.mkdir(parents=True, exist_ok=True)
-        wav_path = speaker_dir / f"turn_{turn_num:03d}.wav"
+        for d in (BENCHMARK1_ORIG_DIR, BENCHMARK1_ZEROED_DIR):
+            (d / "turns" / f"speaker{speaker}").mkdir(parents=True, exist_ok=True)
 
-        turn_entry = {
-            "turn": turn_num,
-            "speaker": speaker,
-            "start_ms": 0,
-            "end_ms": 0,
-            "duration_ms": 0,
-            "text": text,
-            "word_count": len(text.split()),
-            "hesitations": [],
-            "max_hesitation_ms": 0,
-            "category": category,
-            "expected_complete": expected_complete,
-            "target_gap_ms": target_gap,
-            "voice_id": voice_id,
-        }
+        orig_wav = BENCHMARK1_ORIG_DIR / "turns" / f"speaker{speaker}" / f"turn_{turn_num:03d}.wav"
+        zeroed_wav = BENCHMARK1_ZEROED_DIR / "turns" / f"speaker{speaker}" / f"turn_{turn_num:03d}.wav"
 
-        if wav_path.exists() and not force:
-            if (
-                reprocess_existing
-                and target_gap
-                and category in ("hesitation", "hesitation2", "pause")
-            ):
-                _set_gap_duration(wav_path, target_gap, zero_fill=True)
+        entry_orig = _build_turn_entry(sentence, turn_num)
+        entry_zeroed = _build_turn_entry(sentence, turn_num)
 
-            dur = _wav_duration_ms(wav_path)
-            turn_entry["duration_ms"] = dur
-            turn_entry["end_ms"] = dur
+        need_synth = force or not orig_wav.exists()
 
-            boundaries = _analyze_speech_boundaries(wav_path)
-            turn_entry["speech_start_ms"] = boundaries["speech_start_ms"]
-            turn_entry["speech_end_ms"] = boundaries["speech_end_ms"]
-            turn_entry["rms_peak"] = boundaries["rms_peak"]
-
-            if category in ("hesitation", "hesitation2", "pause"):
-                zr = _find_zero_run(wav_path, min_ms=200)
-                if zr:
-                    turn_entry["hesitations"] = [
-                        {"at_ms": zr["start_ms"], "duration_ms": zr["duration_ms"]}
-                    ]
-                    turn_entry["max_hesitation_ms"] = zr["duration_ms"]
-            elif boundaries["silence_gaps"]:
-                turn_entry["hesitations"] = [
-                    {"at_ms": g["start_ms"], "duration_ms": g["duration_ms"]}
-                    for g in boundaries["silence_gaps"]
-                ]
-                turn_entry["max_hesitation_ms"] = max(
-                    g["duration_ms"] for g in boundaries["silence_gaps"]
-                )
-
+        if need_synth:
+            print(f"  [{turn_num:03d}] S{speaker} {category:12s} generating (Original)...")
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tmp_mp3 = Path(tmp.name)
+            api_resp = _synthesize_with_timestamps(text, voice_id, api_key, tmp_mp3)
+            ok = False
+            if api_resp is not None:
+                ok = _mp3_to_wav(tmp_mp3, orig_wav)
+                if ok:
+                    align_info = _extract_alignment_info(api_resp)
+                    if align_info:
+                        for entry in (entry_orig, entry_zeroed):
+                            entry["alignment_start_s"] = align_info["alignment_start_s"]
+                            entry["alignment_end_s"] = align_info["alignment_end_s"]
+            tmp_mp3.unlink(missing_ok=True)
+            if not ok:
+                print(f"         FAILED", file=sys.stderr)
+                turns_orig.append(entry_orig)
+                turns_zeroed.append(entry_zeroed)
+                continue
+            time.sleep(RATE_LIMIT_SLEEP)
+        else:
             label = "SKIP" if skip_existing else "EXISTS"
-            gaps_info = ""
-            if turn_entry["hesitations"]:
-                gaps_info = f" gaps={[h['duration_ms'] for h in turn_entry['hesitations']]}ms"
-            print(f"  [{turn_num:03d}] S{speaker} {category:12s} {label} {dur}ms "
-                  f"(speech {boundaries['speech_start_ms']}-{boundaries['speech_end_ms']}ms"
-                  f"{gaps_info})")
-            turns_data.append(turn_entry)
-            continue
+            print(f"  [{turn_num:03d}] S{speaker} {category:12s} {label} (re-pair from Original)")
 
-        print(f"  [{turn_num:03d}] S{speaker} {category:12s} generating...")
+        # Always ensure Zeroed copy starts from a fresh Original.
+        # Without this, repeated runs would re-zero an already-zeroed
+        # WAV (harmless but confusing); with force=True any earlier
+        # Zeroed edits are wiped.
+        if force or not zeroed_wav.exists():
+            shutil.copy2(orig_wav, zeroed_wav)
 
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            tmp_mp3 = Path(tmp.name)
-
-        api_resp = _synthesize_with_timestamps(
-            text, voice_id, api_key, tmp_mp3,
-        )
-
-        ok = False
-        if api_resp is not None:
-            ok = _mp3_to_wav(tmp_mp3, wav_path)
-            if ok:
-                align_info = _extract_alignment_info(api_resp)
-                if align_info:
-                    turn_entry["alignment_start_s"] = align_info["alignment_start_s"]
-                    turn_entry["alignment_end_s"] = align_info["alignment_end_s"]
-
-        tmp_mp3.unlink(missing_ok=True)
-
-        if ok:
-            if target_gap and category in ("hesitation", "hesitation2", "pause"):
-                adjusted = _set_gap_duration(wav_path, target_gap, zero_fill=True)
-                if adjusted:
-                    print(f"         set gap to {target_gap}ms (zero-fill)")
-            elif category in ("hesitation", "hesitation2", "pause"):
-                # No target_gap_ms — use whatever silence ElevenLabs gave
-                # but still bit-perfect zero it so the agent sees a true
-                # zero-amplitude window. _zero_out_gap picks the largest
-                # detected silence and zeroes just that region. Drop the
-                # min-gap threshold to 150 ms so we catch short natural
-                # thinking pauses around [hesitation] / filler words —
-                # the default 450 ms threshold misses them and leaves
-                # quiet-but-non-zero content where the agent could trip
-                # on residual amplitude.
-                zeroed = _zero_out_gap(wav_path, min_gap_ms=150)
-                if zeroed:
-                    print(f"         zero-filled natural gap "
-                          f"({zeroed['duration_ms']}ms at {zeroed['start_ms']}ms)")
-                else:
-                    print(f"         no natural silence found (≥150ms) to zero")
-
-            dur = _wav_duration_ms(wav_path)
-            turn_entry["duration_ms"] = dur
-            turn_entry["end_ms"] = dur
-
-            boundaries = _analyze_speech_boundaries(wav_path)
-            turn_entry["speech_start_ms"] = boundaries["speech_start_ms"]
-            turn_entry["speech_end_ms"] = boundaries["speech_end_ms"]
-            turn_entry["rms_peak"] = boundaries["rms_peak"]
-
-            if category in ("hesitation", "hesitation2", "pause"):
-                zr = _find_zero_run(wav_path, min_ms=200)
-                if zr:
-                    turn_entry["hesitations"] = [
-                        {"at_ms": zr["start_ms"], "duration_ms": zr["duration_ms"]}
-                    ]
-                    turn_entry["max_hesitation_ms"] = zr["duration_ms"]
-            elif boundaries["silence_gaps"]:
-                turn_entry["hesitations"] = [
-                    {"at_ms": g["start_ms"], "duration_ms": g["duration_ms"]}
-                    for g in boundaries["silence_gaps"]
-                ]
-                turn_entry["max_hesitation_ms"] = max(
-                    g["duration_ms"] for g in boundaries["silence_gaps"]
-                )
-
-            gaps_str = ""
-            if turn_entry["hesitations"]:
-                gap_durs = [h["duration_ms"] for h in turn_entry["hesitations"]]
-                gaps_str = f" gaps={gap_durs}ms"
-                if target_gap and category in ("hesitation", "hesitation2", "pause"):
-                    short = [d for d in gap_durs if d < target_gap]
-                    if short:
-                        gaps_str += f" WARNING: {short}ms < {target_gap}ms target"
-            print(f"         -> {dur}ms "
-                  f"(speech {boundaries['speech_start_ms']}-{boundaries['speech_end_ms']}ms"
-                  f"{gaps_str})")
-        else:
-            print(f"         -> FAILED", file=sys.stderr)
-
-        turns_data.append(turn_entry)
-        time.sleep(RATE_LIMIT_SLEEP)
-
-    index = {
-        "audio_file": "elevenlabs_tts_benchmark1",
-        "provider": "elevenlabs",
-        "model": MODEL_ID,
-        "total_turns": len(turns_data),
-        "voices": {str(k): v for k, v in VOICES.items()},
-        "_note": (
-            "Benchmark 1 corpus: 20 turns. Gaps in pause/hesitation/hesitation2 "
-            "turns are bit-perfectly zeroed (with a 3 ms linear fade at edges) "
-            "so amplitude-driven EOT detectors see a true silent window. "
-            "Reported hesitations.duration_ms reflects the measured zero region."
-        ),
-        "turns": turns_data,
-    }
-
-    BENCHMARK1_OUT_DIR.mkdir(parents=True, exist_ok=True)
-    index_path = BENCHMARK1_OUT_DIR / "turns_index.json"
-    with open(index_path, "w") as f:
-        json.dump(index, f, indent=2)
-    print(f"\nwrote {index_path} ({len(turns_data)} turns)")
-
-    print("\n── gap validation (target range 800-1500ms, zero-fill) ──")
-    issues = []
-    ok_count = 0
-    for t in turns_data:
-        cat = t["category"]
-        if cat not in ("hesitation", "hesitation2", "pause"):
-            continue
-        target = t.get("target_gap_ms", 0)
-        if not target:
-            continue
-        hes = t.get("hesitations", [])
-        if not hes:
-            issues.append(
-                f"  turn {t['turn']:03d} ({cat}, target {target}ms): "
-                f"NO silence gaps detected"
+        # ── Detect once on Original ──
+        # Turn 0 is the opener — keep operator instructions intact in
+        # both paired sources. No test gap is computed even if the
+        # detector finds one.
+        test_gap = None
+        if turn_num > 0 and category in ("hesitation", "pause"):
+            boundaries_raw = _analyze_speech_boundaries(
+                orig_wav, min_gap_ms=BENCHMARK1_MIN_GAP_MS
             )
-        else:
-            max_gap = max(h["duration_ms"] for h in hes)
-            if max_gap < target - RMS_WINDOW_MS:
-                issues.append(
-                    f"  turn {t['turn']:03d} ({cat}, target {target}ms): "
-                    f"max gap {max_gap}ms < target"
-                )
-            else:
-                ok_count += 1
+            gaps = boundaries_raw["silence_gaps"]
+            if gaps:
+                largest = max(gaps, key=lambda g: g["duration_ms"])
+                test_gap = {
+                    "at_ms": largest["start_ms"],
+                    "end_ms": largest["end_ms"],
+                    "duration_ms": largest["duration_ms"],
+                }
 
-    if issues:
-        print(f"WARNING: {len(issues)} turns have gaps below target:")
-        for issue in issues:
-            print(issue)
-    print(f"OK: {ok_count} hesitation/pause turns meet their targets")
+        # ── Apply the SAME window to Zeroed ──
+        # Reuse-only: never re-detect. If the original detection found
+        # no gap, Zeroed stays identical to Original for this turn.
+        zeroed_descriptor = None
+        if test_gap is not None and (need_synth or reprocess_existing):
+            zeroed_descriptor = _zero_specified_gap(
+                zeroed_wav,
+                start_ms=test_gap["at_ms"],
+                end_ms=test_gap["end_ms"],
+                fade_ms=3,
+            )
 
-    return index
+        # ── Populate paired index entries ──
+        for entry, wav_path, want_zero_run_ms in (
+            (entry_orig, orig_wav, False),
+            (entry_zeroed, zeroed_wav, True),
+        ):
+            dur = _wav_duration_ms(wav_path)
+            entry["duration_ms"] = dur
+            entry["end_ms"] = dur
+            b = _analyze_speech_boundaries(wav_path, min_gap_ms=BENCHMARK1_MIN_GAP_MS)
+            entry["speech_start_ms"] = b["speech_start_ms"]
+            entry["speech_end_ms"] = b["speech_end_ms"]
+            entry["rms_peak"] = b["rms_peak"]
+            if test_gap is not None:
+                # CANONICAL: shared detector window. Same on both indexes.
+                entry["hesitations"] = [{
+                    "at_ms": test_gap["at_ms"],
+                    "duration_ms": test_gap["duration_ms"],
+                }]
+                entry["max_hesitation_ms"] = test_gap["duration_ms"]
+            if want_zero_run_ms and test_gap is not None:
+                # DIAGNOSTIC ONLY: actual contiguous int16-zero run in the
+                # zeroed WAV. Not the canonical paired duration.
+                zr = _find_zero_run(wav_path, min_ms=100)
+                if zr:
+                    entry["zero_run_ms"] = zr["duration_ms"]
+
+        gap_str = f"{test_gap['duration_ms']}ms at {test_gap['at_ms']}ms" if test_gap else "—"
+        print(f"         test_gap = {gap_str}")
+        turns_orig.append(entry_orig)
+        turns_zeroed.append(entry_zeroed)
+
+    # ── Write the two paired indexes ──
+    pairs = (
+        (BENCHMARK1_ORIG_DIR, turns_orig, "Benchmark 1 Original",
+         "Raw ElevenLabs WAVs (post-transcode, pre-zero). Natural low-"
+         "amplitude content sits inside the hesitations.at_ms / "
+         "duration_ms window. Detector window is shared with "
+         "Benchmark 1 Zeroed (paired test gap)."),
+        (BENCHMARK1_ZEROED_DIR, turns_zeroed, "Benchmark 1 Zeroed",
+         "Same WAVs as Benchmark 1 Original, with the hesitations.at_ms "
+         "/ duration_ms window written to bit-perfect zero (3 ms linear "
+         "edge fade). The canonical paired test gap is hesitations."
+         "duration_ms (the detector window); zero_run_ms is the actual "
+         "contiguous int16-zero run length and is diagnostic only."),
+    )
+    for out_dir, turns_data, label, note in pairs:
+        index = {
+            "audio_file": f"elevenlabs_tts_benchmark1_{out_dir.name.lower()}",
+            "provider": "elevenlabs",
+            "model": MODEL_ID,
+            "total_turns": len(turns_data),
+            "voices": {str(k): v for k, v in VOICES.items()},
+            "_note": note,
+            "_paired_with": (
+                "Benchmark_1_Zeroed" if "Original" in label else "Benchmark_1_Original"
+            ),
+            "turns": turns_data,
+        }
+        idx_path = out_dir / "turns_index.json"
+        with open(idx_path, "w") as f:
+            json.dump(index, f, indent=2)
+        print(f"wrote {idx_path} ({len(turns_data)} turns)")
+
+    # ── Pairing sanity check ──
+    print("\n── pairing audit ──")
+    mismatched = 0
+    for o, z in zip(turns_orig, turns_zeroed):
+        oh = o["hesitations"][0] if o["hesitations"] else None
+        zh = z["hesitations"][0] if z["hesitations"] else None
+        if oh != zh:
+            print(f"  MISMATCH turn {o['turn']}: orig={oh} zeroed={zh}")
+            mismatched += 1
+    if mismatched == 0:
+        n_paired = sum(1 for o in turns_orig if o["hesitations"])
+        print(f"OK: all {n_paired} gap-bearing turns share identical hesitations entries")
+    else:
+        print(f"WARNING: {mismatched} turns disagree between Original and Zeroed", file=sys.stderr)
+
+    return {"original": turns_orig, "zeroed": turns_zeroed}
 
 
 def main():
