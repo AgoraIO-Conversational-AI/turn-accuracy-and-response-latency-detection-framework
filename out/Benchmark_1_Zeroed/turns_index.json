@@ -61,26 +61,26 @@
       "turn": 2,
       "speaker": 1,
       "start_ms": 0,
-      "end_ms": 5600,
-      "duration_ms": 5600,
-      "text": "Michael Turner [pause] [pause] urr April fourteenth, nineteen eighty five.",
+      "end_ms": 4720,
+      "duration_ms": 4720,
+      "text": "Michael Turner [hesitation] [hesitation] urr April fourteenth, nineteen eighty five.",
       "word_count": 10,
       "hesitations": [
         {
-          "at_ms": 840,
-          "duration_ms": 2440
+          "at_ms": 1000,
+          "duration_ms": 760
         }
       ],
-      "max_hesitation_ms": 2440,
+      "max_hesitation_ms": 760,
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "maYJAY8nOIBZeB0UYfc5",
       "alignment_start_s": 0.0,
       "alignment_end_s": 5.6,
       "speech_start_ms": 40,
-      "speech_end_ms": 5580,
-      "rms_peak": 0.2829,
-      "zero_run_ms": 2440
+      "speech_end_ms": 4700,
+      "rms_peak": 0.3531,
+      "zero_run_ms": 760
     },
     {
       "turn": 3,
@@ -168,26 +168,26 @@
       "turn": 7,
       "speaker": 2,
       "start_ms": 0,
-      "end_ms": 5440,
-      "duration_ms": 5440,
+      "end_ms": 4080,
+      "duration_ms": 4080,
       "text": "Update my [pause] billing address please.",
       "word_count": 6,
       "hesitations": [
         {
-          "at_ms": 1360,
-          "duration_ms": 2100
+          "at_ms": 1160,
+          "duration_ms": 1400
         }
       ],
-      "max_hesitation_ms": 2100,
+      "max_hesitation_ms": 1400,
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "QoC8og5VjCQoTz0caaaO",
       "alignment_start_s": 0.0,
       "alignment_end_s": 5.44,
-      "speech_start_ms": 120,
-      "speech_end_ms": 5200,
-      "rms_peak": 0.1117,
-      "zero_run_ms": 2100
+      "speech_start_ms": 40,
+      "speech_end_ms": 3940,
+      "rms_peak": 0.1352,
+      "zero_run_ms": 1400
     },
     {
       "turn": 8,
@@ -356,26 +356,26 @@
       "turn": 15,
       "speaker": 2,
       "start_ms": 0,
-      "end_ms": 5600,
-      "duration_ms": 5600,
+      "end_ms": 4800,
+      "duration_ms": 4800,
       "text": "Could you transfer me to [pause] the billing department please?",
       "word_count": 10,
       "hesitations": [
         {
-          "at_ms": 2100,
-          "duration_ms": 1680
+          "at_ms": 2220,
+          "duration_ms": 860
         }
       ],
-      "max_hesitation_ms": 1680,
+      "max_hesitation_ms": 860,
       "category": "pause",
       "expected_complete": false,
       "voice_id": "QoC8og5VjCQoTz0caaaO",
       "alignment_start_s": 0.0,
       "alignment_end_s": 5.604,
-      "speech_start_ms": 0,
-      "speech_end_ms": 5360,
-      "rms_peak": 0.181,
-      "zero_run_ms": 1680
+      "speech_start_ms": 60,
+      "speech_end_ms": 4600,
+      "rms_peak": 0.2464,
+      "zero_run_ms": 860
     },
     {
       "turn": 16,
@@ -431,26 +431,26 @@
       "turn": 18,
       "speaker": 4,
       "start_ms": 0,
-      "end_ms": 7120,
-      "duration_ms": 7120,
+      "end_ms": 6400,
+      "duration_ms": 6400,
       "text": "The problem is my old subscription [pause] was cancelled without any notice.",
       "word_count": 12,
       "hesitations": [
         {
-          "at_ms": 2920,
-          "duration_ms": 2060
+          "at_ms": 2640,
+          "duration_ms": 1460
         }
       ],
-      "max_hesitation_ms": 2060,
+      "max_hesitation_ms": 1460,
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "1AKkSX7KMPHIWuz76m0n",
       "alignment_start_s": 0.0,
       "alignment_end_s": 7.12,
       "speech_start_ms": 0,
-      "speech_end_ms": 7100,
-      "rms_peak": 0.5543,
-      "zero_run_ms": 2060
+      "speech_end_ms": 6380,
+      "rms_peak": 0.5236,
+      "zero_run_ms": 1463
     },
     {
       "turn": 19,

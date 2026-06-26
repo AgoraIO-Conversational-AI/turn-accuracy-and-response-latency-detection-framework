@@ -360,10 +360,13 @@ SENTENCES_BENCHMARK1 = [
     },
     # 2 — hesitation (name + DoB; semantically ambiguous after gap —
     #   "Michael Turner" alone is a plausible answer to "your name?").
+    #   [hesitation] tags lengthen prosody on "Turner"; "urr" is the
+    #   audible filler before the natural pause; no [pause] tag because
+    #   the type is hesitation, not pause.
     {
         "voice": 1,
         "category": "hesitation",
-        "text": "Michael Turner [pause] [pause] urr April fourteenth, nineteen eighty five.",
+        "text": "Michael Turner [hesitation] [hesitation] urr April fourteenth, nineteen eighty five.",
         "expected_complete": False,
     },
     # 3 — normal (short complete answer)
