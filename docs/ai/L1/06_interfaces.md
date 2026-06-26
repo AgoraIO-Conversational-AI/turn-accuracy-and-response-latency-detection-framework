@@ -85,7 +85,7 @@ class TurnResult:
 
 TTS-specific fields (`category`, `expected_complete`, `target_gap_ms`, `voice_id`) are present in TTS turn indexes. Segmented audio indexes omit them — the harness handles both formats.
 
-Categories: `normal`, `pause`, `hesitation`, `hesitation2`, `ambiguous`. Each encodes a semantic test condition — `pause` is semantically incomplete before the gap, `hesitation` is semantically ambiguous, `ambiguous` is semantically incomplete but prosody marks an end. See `docs/ai/L1/05_workflows.md` § "Turn type semantics" for the full rulebook and the gotchas around tag placement / multi-`[pause]` corruption.
+Categories: `normal`, `pause`, `hesitation`, `ambiguous`. Each encodes a semantic test condition — `pause` is semantically incomplete before the gap, `hesitation` is semantically ambiguous, `ambiguous` is semantically incomplete but prosody marks an end. See `docs/ai/L1/05_workflows.md` § "Turn type semantics" for the rulebook, tag-pattern table, and ElevenLabs voice quirks. (The legacy `hesitation2` category was collapsed into `hesitation` — same semantics, no longer worth a separate flag.)
 
 ## Browser harness (`static/browser_harness.js`)
 

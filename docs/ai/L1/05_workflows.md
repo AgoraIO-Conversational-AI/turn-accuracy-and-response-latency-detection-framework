@@ -71,124 +71,123 @@ Output:
 
 ### Turn type semantics (rulebook)
 
-The UI shows the same key under "Turn types" beside Audio Devices. Each type encodes a specific test condition:
+Four categories. The UI key beside Audio Devices shows the same four:
 
 | Type | Tags | Definition |
 |---|---|---|
 | `normal` | — | Semantically complete sentence. Baseline TTFA. |
 | `pause` | `[pause]` | Semantically incomplete. `[pause]` Semantically complete. The words before the gap clearly do not stand on their own. |
-| `hesitation` | `[hesitation] [pause]` or `[hesitation]` × N | Semantically ambiguous. `[hesitation] [pause]` Semantically complete. The words before the gap could plausibly be a complete answer or the start of a longer one. The `[hesitation]` tag adds prosodic lengthening on the **last word** before the gap. |
-| `hesitation2` | `[hesitation]` + measured silence | Semantically ambiguous; the engineered silence portion is precisely measured. Same semantics as `hesitation` — kept as a separate category because the original test design produced these via prosody-only `[hesitation]` tags without explicit fillers, post-processed to exact-target zero-filled silence. |
-| `ambiguous` | — | Semantically incomplete BUT prosody marks end. Sentence ends with a trailing cue ("…but.", "…so.", "…it's hard to say.") — words don't finish but the TTS renders falling-pitch end-of-sentence prosody. Tests over-cautious EOT detectors that wait when both prosody-driven and semantic-driven cues *disagree*. |
+| `hesitation` | `[hesitation]` and/or `[pause]` | Semantically ambiguous. Words before the gap could plausibly be a complete answer or the start of a longer one. The `[hesitation]` tag adds prosodic lengthening on the last word before the gap; `[pause]` opens silence. Pick whichever combination produces silence in the design range (see tag-patterns table below). |
+| `ambiguous` | — | Semantically incomplete BUT prosody marks end. Sentence ends with a trailing cue ("…but.", "…so.", "…it's hard to say.") — words don't finish but the TTS renders falling-pitch end-of-sentence prosody. Tests over-cautious EOT detectors that wait when prosody-driven and semantic-driven cues *disagree*. |
 
-It is taken as given that the agent under test should never interrupt during the silence portion of any gap-bearing turn. That's not stated in the key.
+The agent under test never interrupts during the silence portion of any gap-bearing turn — that's a given.
+
+Older versions of this corpus also had a `hesitation2` category for prosody-only + precise-silence-injected gaps. We no longer inject silence ourselves on new turns (whatever ElevenLabs renders is what gets zeroed in place), so `hesitation2` was collapsed into `hesitation`.
 
 ### Benchmark 1 corpus (default source)
 
-21 turns (0-20). Two provenances:
+21 turns (0-20). Every turn is **freshly synthesized through ElevenLabs**; no WAVs are copied from the legacy `TTS_Turns_Silenced` corpus anymore. Texts and voice assignments live in `SENTENCES_BENCHMARK1` (`src/harness/generate_tts.py`).
 
-- **6 new utterances** (positions 1-6) — billing-call scenario, defined in `SENTENCES_BENCHMARK1` (`src/harness/generate_tts.py`). Freshly synthesized through ElevenLabs.
-- **15 keepers** (positions 0, 7-20) — WAVs + index entries copied verbatim from `out/TTS_Turns_Silenced/`. **Do not regenerate.** Audio + measured silence must stay stable across runs.
+Category mix (current): normal (5), pause (4), hesitation (9), ambiguous (3).
 
-Keeper renumber map:
+Each gap-bearing turn's silence is **whatever ElevenLabs natural rendering produces**, then bit-perfectly zeroed in place. We pick tag patterns (see below) that land the silence in the 700-1500 ms design range; current corpus distribution is 860, 860, 982, 1000, 1000, 1020, 1040, 1100, 1140, 1220, 1240, 1400, 1500 ms.
 
-| B1 turn | TTS_Turns_Silenced | Spk | B1 turn | TTS_Turns_Silenced | Spk |
-|---|---|---|---|---|---|
-| 0 | 0 | 2 | 14 | 16 | 3 |
-| 7 | 2 | 2 | 15 | 17 | 2 |
-| 8 | 4 | 2 | 16 | 21 | 0 |
-| 9 | 5 | 0 | 17 | 22 | 3 |
-| 10 | 6 | 3 | 18 | 23 | 4 |
-| 11 | 7 | 1 | 19 | 24 | 1 |
-| 12 | 11 | 2 | 20 | 9 | 4 |
-| 13 | 15 | 1 | | | |
-
-Category mix (current): normal (5), pause (4), hesitation (5), hesitation2 (4), ambiguous (3).
-
-Audio: 48 kHz mono 16-bit PCM. Every pause / hesitation / hesitation2 silence region is **bit-perfectly zero** with a 3 ms linear fade at each edge. Reported `hesitations.duration_ms` is the **actual measured zero-run length** in the WAV — never padded, never rounded to a target.
+Audio: 48 kHz mono 16-bit PCM. Every pause / hesitation silence region is **bit-perfectly zero** with a 3 ms linear fade at each edge. Reported `hesitations.duration_ms` is the **actual measured zero-run length** in the WAV — never padded, never rounded to a target.
 
 ### Adding a new TTS turn — recipe
 
-1. **Append an entry to `SENTENCES_BENCHMARK1`** in `src/harness/generate_tts.py` with these required fields:
+1. **Append an entry to `SENTENCES_BENCHMARK1`** in `src/harness/generate_tts.py` with these fields:
 
    ```python
    {
        "voice": 0,                     # 0-4 (see VOICES)
-       "category": "pause",            # normal / pause / hesitation / hesitation2 / ambiguous
-       "tts_text":     "...",          # exact text sent to ElevenLabs
-       "display_text": "...",          # MUST equal tts_text byte-for-byte
+       "category": "pause",            # normal / pause / hesitation / ambiguous
+       "text": "...",                  # one field — tts and display are the same string
        "expected_complete": False,     # True for normal / ambiguous
    }
    ```
 
-   Omit `target_gap_ms` — new turns now use whatever silence ElevenLabs produces, then zero it in place. The 800-1500 ms range is a *design guideline* for picking sentences whose tag patterns reliably land in that range, not a runtime target.
+   No `target_gap_ms`. The generator zeros whatever silence ElevenLabs produces and reports the actual length.
 
-2. **Pick a tag pattern that reliably produces the silence you need** (see table below).
+2. **Probe the text against ElevenLabs first.** ElevenLabs is very non-deterministic — same text and voice produce different silence lengths each call. Render 2-3 times via `/tmp/tts_probe.py` to see the range before committing:
 
-3. **Delete the existing WAV** (if regenerating) so the generator re-synthesizes:
+   ```bash
+   python /tmp/tts_probe.py --voice <N> --n 3 --text "your candidate text"
+   ```
+
+   The probe renders the text, runs the same `_zero_out_gap(min_gap_ms=150)` post-processing the corpus uses, and reports the measured zero-region length per render. Iterate on tag pattern + sentence shape until at least one render lands in your target band (typically 700-1500 ms).
+
+3. **Delete the existing WAV** if you're replacing a turn:
 
    ```bash
    rm out/Benchmark_1/turns/speaker<N>/turn_<NNN>.wav
    ```
 
-4. **Run the generator** with `--skip-existing --no-reprocess-existing` so only the missing WAVs hit the API and keeper WAVs/index entries aren't disturbed:
+4. **Generate**:
 
    ```bash
    python -m src.harness.generate_tts --benchmark1 --skip-existing --no-reprocess-existing
    ```
 
-5. **Re-overlay keeper index entries** from `TTS_Turns_Silenced` (the `--benchmark1` run rewrites the whole `turns_index.json`; keeper entries must be restored from the silenced source). The renumber map above is the source of truth.
+   Synthesizes only missing WAVs; existing WAVs are re-measured but not re-zeroed.
 
-6. **Restart pm2** so the index is reloaded into memory:
+5. **Verify the silence landed in range.** If not, repeat steps 2-4 with a different tag pattern. ElevenLabs may give you a different value than the probe — non-determinism is real, just keep rolling.
+
+6. **Restart pm2**:
 
    ```bash
    pm2 restart benchmark
    ```
 
-7. **Listen** to the new turn via the per-row preview (click the turn number in the UI). Verify the text, gap position, and silence length match expectations.
+7. **Listen** to the turn via the per-row preview (click the turn number in the UI). Confirm the text, gap position, and silence length.
 
-### Tag patterns and what to expect
+### Tag patterns — what to expect (empirical, non-deterministic)
 
-| Pattern | Effect | Typical silence |
+ElevenLabs `eleven_v3` model is *very* non-deterministic. Same text + voice can give silence lengths varying by 2-3× across renders. The table below is the typical center of the distribution; individual renders can fall well outside.
+
+| Pattern | Typical silence range | Notes |
 |---|---|---|
-| (no tag) | natural prosody, complete sentence | 0 ms |
-| `[hesitation]` | prosodic lengthening on last word, no silence | 0 ms |
-| `[pause]` | one engineered silence | **variable** — often 1100-1500 ms, sometimes much less |
-| `[hesitation] [pause]` | prosody + silence | unreliable — sometimes collapses to ~200 ms |
-| `[hesitation] [hesitation] [pause]` | double prosody + silence | **reliable** — 800-1200 ms |
-| `[hesitation] [hesitation] [pause] [pause]` | as above, with longer silence | 1200-1500 ms |
-| literal `urr` / `um` / `uh` | audible filler word, no enforced silence | natural breath only |
+| (no tag) | 0 ms | natural prosody, no engineered silence |
+| `[hesitation]` only | 0 ms | prosodic lengthening only; no silence opens |
+| `[pause]` | 800-1500 ms (varies wildly: 400-2000) | the workhorse; voice-dependent |
+| `[pause] [pause]` | 1000-2000+ ms | longer silence; useful when single `[pause]` is too short for a particular voice |
+| `[hesitation] [pause]` | unreliable — 200 ms to 1500+ ms | the original "prosody + silence" pattern; very volatile |
+| `[hesitation] [hesitation] [pause]` | 800-1200 ms | more reliable than single `[hesitation] [pause]` |
+| `[short pause]` | 1500-2000 ms with some voices | seemingly named for the long pause it produces |
+| literal `urr` / `um` / `uh` | adds an audible filler word | no silence on its own — combine with `[pause]` |
 
-Match the pattern to the category:
+**Voice quirks observed:**
 
-- **`pause`** — `[pause]` alone usually works. If you need a guaranteed 800+ ms gap and a single `[pause]` is producing too little, fall back to a `[hesitation] [hesitation] [pause]` pattern even though semantically it's pause (the prosody on a final-comma sentence end is barely audible if the preceding word doesn't invite lengthening).
-- **`hesitation`** — `[hesitation] [hesitation] [pause]` is the workhorse. Add a literal `urr`/`um`/`uh` if you want an audible filler in addition to the silence.
-- **`hesitation2`** — legacy category; new turns don't need this. Use plain `hesitation`.
-- **`normal`** and **`ambiguous`** — no tags.
+- **Voice 1** is the most volatile — same text can produce 200 ms one render and 2000 ms the next.
+- **Voice 2** trends *long*: even a single `[pause]` often produces 1500-2000 ms. Use shorter sentences when targeting < 1500 ms.
+- **Voice 4** ignores `[hesitation]` and (sometimes) `[pause]` if placed late in the sentence. Put the `[pause]` mid-sentence after a content word ("…subscription [pause] was cancelled…") for it to land.
+- **Voices 0 and 3** are the most predictable — `[pause]` and `[hesitation] [hesitation] [pause]` patterns behave near the table averages.
 
 ### Gotchas
 
 These bit us in practice — not theoretical:
 
-- **`[pause] [pause]` can delete words.** ElevenLabs sometimes places the two tags at *different* sentence positions (one after "for", one after "dollars"). The legacy `_enforce_single_gap()` helper used to merge them by cutting all audio between the first and last gap — wiping out the intervening phrase. The current `_set_gap_duration()` no longer calls `_enforce_single_gap`; instead it picks the **largest** detected silence and operates on that, leaving natural breath-pauses intact. Still: prefer a single `[pause]` to keep the audio shape predictable.
+- **ElevenLabs is wildly non-deterministic.** Don't be surprised when "the text that gave 820 ms yesterday" gives 320 ms today. Use the probe to take 2-3 samples before committing. If you cannot get a turn into range after a few iterations, change the tag pattern or sentence, not just retry.
+
+- **`[pause] [pause]` is *not* dangerous anymore.** It used to delete words because the cleanup pass merged multi-gap audio by cutting everything between the first and last gap. `_set_gap_duration` no longer does that — it picks the *largest* silence and ignores natural inter-word breaths. You can use `[pause] [pause]` safely to push silence longer for volatile voices.
 
 - **Comma before `[hesitation]` kills the prosodic lengthening.** `Michael Turner, [hesitation]` lengthens the comma-stop, not "Turner". Write `Michael Turner [hesitation]`.
 
-- **`[hesitation] [pause]` is unreliable.** ElevenLabs frequently collapses this to a 200 ms breath-pause. Use `[hesitation] [hesitation] [pause]` for a guaranteed 800+ ms gap.
+- **`[hesitation] [pause]` is unreliable.** Most renders collapse to 200-400 ms breath-pauses. Use `[hesitation] [hesitation] [pause]` or just `[pause]` for stronger guarantees.
 
-- **`display_text` must equal `tts_text` byte-exactly.** The Text column shows operators what ElevenLabs got. Drift between the two is a bug. Long rows are clipped with CSS ellipsis; full text on hover via the `title` attribute.
+- **Voice 4 ignores `[hesitation]` tags.** With voice 4, only `[pause]` works, and even then it needs to be placed mid-sentence after a content word — late-sentence `[pause]` gets ignored.
+
+- **`text` is single-field.** No separate `tts_text` / `display_text`. The same string goes to ElevenLabs and to the UI. Long rows clip with CSS `text-overflow: ellipsis`; the full text is on hover via the `title` attribute.
 
 - **The zero-fill grows past the true silence by ~400 ms.** `_zero_out_gap` uses `_analyze_speech_boundaries(min_gap_ms=...)` with an RMS threshold of 0.005. Quiet decay tails on either side of the actual silence fall below that threshold and get absorbed into the zeroed region. So a real ElevenLabs 1140 ms silence often ends up as a 1540 ms bit-perfect-zero region in the WAV. That's intentional — the agent sees a cleaner gap — but it means the column reading is "true silence + decay edges", not "true ElevenLabs silence". Lower `RMS_SILENCE_THRESHOLD` if you need tighter mapping.
 
 - **`min_gap_ms` controls which silences are visible.** Default is 450 ms (suits engineered `[pause]` gaps). The natural-gap branch in `generate_benchmark1` passes 150 ms so short thinking pauses (200-400 ms) around `[hesitation]` / filler words still get detected and zeroed.
 
-- **Round numbers in the legacy keepers are coincidence.** Turns 16 and 17 happen to land on 1200.0000 and 1000.0000 ms because their original `[pause]` rendered cleanly within one RMS window of target. The other keepers are 794, 796, 806, 995, 1194, 1494 ms — *not* rounded. Reported values are always actual measurements, never padded.
-
-- **Turn 0 (opener) is special.** Carries operator instructions ("I'm going to say some random things…"). Its mid-sentence pause is **not** zero-filled — the operator must hear the full instruction intact. Don't add `target_gap_ms` to it.
+- **Turn 0 (opener) is special.** Carries operator instructions ("I'm going to say some random things…"). Its mid-sentence pause is **not** zero-filled — the operator must hear the full instruction intact.
 
 - **Restart pm2 after editing `turns_index.json`.** The service caches the index in memory on source switch. Static JS/HTML/CSS changes are served live by FastAPI; Python and index changes need `pm2 restart benchmark`.
 
-- **Always run with `--skip-existing --no-reprocess-existing`** when adding new turns. Plain `--benchmark1` re-processes existing WAVs through `_set_gap_duration`, which can subtly shift the keeper silence boundaries. The `--no-reprocess-existing` flag is the safe default for incremental updates.
+- **Always run with `--skip-existing --no-reprocess-existing`** when iterating on a single turn. Plain `--benchmark1` re-processes existing WAVs through `_set_gap_duration` and can shift silence boundaries.
 
 ### Legacy TTS_Turns / TTS_Turns_Silenced corpora
 

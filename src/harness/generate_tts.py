@@ -343,8 +343,7 @@ SENTENCES_BENCHMARK1 = [
     {
         "voice": 2,
         "category": "normal",
-        "tts_text": "I'm going to say some random things to see how you respond. Please keep your responses to under ten words.",
-        "display_text": "I'm going to say some random things to see how you respond. Please keep your responses to under ten words.",
+        "text": "I'm going to say some random things to see how you respond. Please keep your responses to under ten words.",
         "expected_complete": True,
     },
     # 1 — pause (billing amount; semantically incomplete after gap).
@@ -355,28 +354,22 @@ SENTENCES_BENCHMARK1 = [
     {
         "voice": 0,
         "category": "pause",
-        "tts_text": "Yeah, I got a bill for [pause] six hundred and eighty dollars and I can't pay it all today.",
-        "display_text": "Yeah, I got a bill for [pause] six hundred and eighty dollars and I can't pay it all today.",
+        "text": "Yeah, I got a bill for [pause] six hundred and eighty dollars and I can't pay it all today.",
         "expected_complete": False,
     },
     # 2 — hesitation (name + DoB; semantically ambiguous after gap —
     #   "Michael Turner" alone is a plausible answer to "your name?").
-    #   No comma so the [hesitation] tag's prosodic lengthening attaches
-    #   to "Turner", then audible "urr" before the natural silence.
-    #   Whatever silence ElevenLabs renders is zeroed in place; no resize.
     {
         "voice": 1,
         "category": "hesitation",
-        "tts_text": "Michael Turner [hesitation] [hesitation] [pause] urr April fourteenth, nineteen eighty five.",
-        "display_text": "Michael Turner [hesitation] [hesitation] [pause] urr April fourteenth, nineteen eighty five.",
+        "text": "Michael Turner [pause] [pause] urr April fourteenth, nineteen eighty five.",
         "expected_complete": False,
     },
     # 3 — normal (short complete answer)
     {
         "voice": 2,
         "category": "normal",
-        "tts_text": "Payment plan.",
-        "display_text": "Payment plan.",
+        "text": "Payment plan.",
         "expected_complete": True,
     },
     # 4 — hesitation (semantically ambiguous after gap — "Ask them" is a
@@ -388,146 +381,123 @@ SENTENCES_BENCHMARK1 = [
     {
         "voice": 3,
         "category": "hesitation",
-        "tts_text": "Ask them [hesitation] [hesitation] urr why insurance didn't cover it.",
-        "display_text": "Ask them [hesitation] [hesitation] urr why insurance didn't cover it.",
+        "text": "Ask them [hesitation] [hesitation] urr why insurance didn't cover it.",
         "expected_complete": False,
     },
     # 5 — normal (decision confirmation)
     {
         "voice": 4,
         "category": "normal",
-        "tts_text": "That's fine, just do the payment plan.",
-        "display_text": "That's fine, just do the payment plan.",
+        "text": "That's fine, just do the payment plan.",
         "expected_complete": True,
     },
     # 6 — ambiguous (one-word reply)
     {
         "voice": 0,
         "category": "ambiguous",
-        "tts_text": "Yes.",
-        "display_text": "Yes.",
+        "text": "Yes.",
         "expected_complete": True,
     },
-    # 7 — hesitation 800ms (kept from original turn 2; audio retains legacy "um" filler)
+    # 7 — hesitation (voice 2; short sentence to bias gap shorter)
     {
         "voice": 2,
         "category": "hesitation",
-        "tts_text": "I need to update my [hesitation] [hesitation] [pause] um, my billing address.",
-        "display_text": "I need to update my [hesitation] [hesitation] [pause] um, my billing address.",
+        "text": "Update my [pause] billing address please.",
         "expected_complete": False,
-        "target_gap_ms": 800,
     },
     # 8 — ambiguous (kept from original turn 4)
     {
         "voice": 2,
         "category": "ambiguous",
-        "tts_text": "That's not really what I was looking for but.",
-        "display_text": "That's not really what I was looking for but.",
+        "text": "That's not really what I was looking for but.",
         "expected_complete": True,
     },
     # 9 — normal (kept from original turn 5)
     {
         "voice": 0,
         "category": "normal",
-        "tts_text": "I'd like to book a table for two at seven o'clock tonight please.",
-        "display_text": "I'd like to book a table for two at seven o'clock tonight please.",
+        "text": "I'd like to book a table for two at seven o'clock tonight please.",
         "expected_complete": True,
     },
-    # 10 — pause 1000ms (kept from original turn 6)
+    # 10 — pause (single [pause] tag; ElevenLabs decides duration)
     {
         "voice": 3,
         "category": "pause",
-        "tts_text": "My account number starts with [pause] [pause] [short pause] eight six three.",
-        "display_text": "My account number starts with [pause] [pause] [short pause] eight six three.",
+        "text": "My account number starts with [pause] eight six three.",
         "expected_complete": False,
-        "target_gap_ms": 1000,
     },
-    # 11 — hesitation2 800ms (kept from original turn 7)
-    {
-        "voice": 1,
-        "category": "hesitation2",
-        "tts_text": "The last time I checked it was [hesitation] [hesitation] [pause] somewhere around forty five dollars.",
-        "display_text": "The last time I checked it was [hesitation] [hesitation] [pause] somewhere around forty five dollars.",
-        "expected_complete": False,
-        "target_gap_ms": 800,
-    },
-    # 12 — hesitation2 1000ms (kept from original turn 11)
-    {
-        "voice": 2,
-        "category": "hesitation2",
-        "tts_text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
-        "display_text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
-        "expected_complete": False,
-        "target_gap_ms": 1000,
-    },
-    # 13 — hesitation 1200ms (kept from original turn 15; audio retains legacy "yeah" filler)
+    # 11 — hesitation (plain [pause]; voice 1 + this sentence is most
+    #   reliable when kept simple)
     {
         "voice": 1,
         "category": "hesitation",
-        "tts_text": "We could also try [hesitation] [hesitation] [pause] yeah, the other location might work better.",
-        "display_text": "We could also try [hesitation] [hesitation] [pause] yeah, the other location might work better.",
+        "text": "The last time I checked it was [pause] somewhere around forty five dollars.",
         "expected_complete": False,
-        "target_gap_ms": 1200,
     },
-    # 14 — hesitation2 1200ms (kept from original turn 16)
+    # 12 — hesitation
+    {
+        "voice": 2,
+        "category": "hesitation",
+        "text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
+        "expected_complete": False,
+    },
+    # 13 — hesitation (one [hesitation], aiming for shorter range)
+    {
+        "voice": 1,
+        "category": "hesitation",
+        "text": "We could also try [hesitation] [pause] yeah, the other location might work better.",
+        "expected_complete": False,
+    },
+    # 14 — hesitation (was hesitation2; collapsed since we no longer
+    #   inject silence to hit a precise target. Single [pause] kept.)
     {
         "voice": 3,
-        "category": "hesitation2",
-        "tts_text": "I was going to renew but then the [hesitation] [hesitation] [pause] [pause] price went up by almost double.",
-        "display_text": "I was going to renew but then the [hesitation] [hesitation] [pause] [pause] price went up by almost double.",
+        "category": "hesitation",
+        "text": "I was going to renew but then the [hesitation] [hesitation] [pause] price went up by almost double.",
         "expected_complete": False,
-        "target_gap_ms": 1200,
     },
-    # 15 — pause 800ms (kept from original turn 17)
+    # 15 — pause (single [pause] tag)
     {
         "voice": 2,
         "category": "pause",
-        "tts_text": "Could you transfer me to [pause] [pause] [short pause] the billing department please?",
-        "display_text": "Could you transfer me to [pause] [pause] [short pause] the billing department please?",
+        "text": "Could you transfer me to [pause] the billing department please?",
         "expected_complete": False,
-        "target_gap_ms": 800,
     },
-    # 16 — pause 1200ms (kept from original turn 21)
+    # 16 — pause (single [pause] tag)
     {
         "voice": 0,
         "category": "pause",
-        "tts_text": "I'm calling because [pause] [pause] [short pause] I received the wrong item yesterday.",
-        "display_text": "I'm calling because [pause] [pause] [short pause] I received the wrong item yesterday.",
+        "text": "I'm calling because [pause] I received the wrong item yesterday.",
         "expected_complete": False,
-        "target_gap_ms": 1200,
     },
-    # 17 — hesitation 1000ms (kept from original turn 22; audio retains legacy "uh" filler)
+    # 17 — hesitation
     {
         "voice": 3,
         "category": "hesitation",
-        "tts_text": "The appointment was for [hesitation] [hesitation] [pause] uh, I think it was three thirty.",
-        "display_text": "The appointment was for [hesitation] [hesitation] [pause] uh, I think it was three thirty.",
+        "text": "The appointment was for [hesitation] [hesitation] [pause] uh, I think it was three thirty.",
         "expected_complete": False,
-        "target_gap_ms": 1000,
     },
-    # 18 — hesitation2 1500ms (kept from original turn 23)
+    # 18 — hesitation (voice 4 ignores [hesitation] tags entirely; only
+    #   responds to a bare [pause] placed mid-sentence — at "subscription"
+    #   it lands in range 900-1500ms)
     {
         "voice": 4,
-        "category": "hesitation2",
-        "tts_text": "The problem is that my old [hesitation] [hesitation] [pause] [pause] subscription was cancelled without any notice.",
-        "display_text": "The problem is that my old [hesitation] [hesitation] [pause] [pause] subscription was cancelled without any notice.",
+        "category": "hesitation",
+        "text": "The problem is my old subscription [pause] was cancelled without any notice.",
         "expected_complete": False,
-        "target_gap_ms": 1500,
     },
     # 19 — ambiguous (kept from original turn 24)
     {
         "voice": 1,
         "category": "ambiguous",
-        "tts_text": "I mean I'm not entirely sure about that, it's hard to say.",
-        "display_text": "I mean I'm not entirely sure about that, it's hard to say.",
+        "text": "I mean I'm not entirely sure about that, it's hard to say.",
         "expected_complete": True,
     },
     # 20 — normal (kept from original turn 9; closes the session)
     {
         "voice": 4,
         "category": "normal",
-        "tts_text": "Thanks for your help, I appreciate it.",
-        "display_text": "Thanks for your help, I appreciate it.",
+        "text": "Thanks for your help, I appreciate it.",
         "expected_complete": True,
     },
 ]
@@ -1391,7 +1361,9 @@ def generate_benchmark1(
         speaker = sentence["voice"]
         voice_id = VOICES[speaker]
         category = sentence["category"]
-        display_text = sentence["display_text"]
+        # Single `text` field used both as tts_text and display_text;
+        # operators see verbatim what ElevenLabs gets.
+        text = sentence["text"]
         expected_complete = sentence["expected_complete"]
         target_gap = sentence.get("target_gap_ms", 0)
 
@@ -1405,8 +1377,8 @@ def generate_benchmark1(
             "start_ms": 0,
             "end_ms": 0,
             "duration_ms": 0,
-            "text": display_text,
-            "word_count": len(display_text.split()),
+            "text": text,
+            "word_count": len(text.split()),
             "hesitations": [],
             "max_hesitation_ms": 0,
             "category": category,
@@ -1464,7 +1436,7 @@ def generate_benchmark1(
             tmp_mp3 = Path(tmp.name)
 
         api_resp = _synthesize_with_timestamps(
-            sentence["tts_text"], voice_id, api_key, tmp_mp3,
+            text, voice_id, api_key, tmp_mp3,
         )
 
         ok = False
