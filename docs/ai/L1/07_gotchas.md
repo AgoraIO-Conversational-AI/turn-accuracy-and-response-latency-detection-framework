@@ -47,3 +47,13 @@ The default RMS threshold (0.01) works well for clean digital audio paths. If yo
 ## macOS Permissions
 
 sounddevice needs microphone permission. If capture fails silently, check System Settings → Privacy & Security → Microphone → Terminal/IDE.
+
+## ElevenLabs `[pause] [pause]` Can Delete Words
+
+If a `tts_text` entry includes more than one `[pause]` tag, ElevenLabs can place the two tags at *different* sentence positions (e.g. one after "for" and one after "dollars"). The post-processor `_enforce_single_gap()` then merges multiple gaps into one by deleting all audio between the start of the first gap and the end of the last gap — including any words in between.
+
+**Symptom**: WAV duration much shorter than the words would imply; a phrase is missing from the audio entirely.
+
+**Fix**: use exactly **one `[pause]` tag** per turn. For longer engineered silence, set `target_gap_ms` higher — the generator's zero-fill stage will stretch the single natural gap to the target.
+
+See `docs/ai/L1/05_workflows.md` § "Gotchas" for the full list of TTS-corpus failure modes (comma-before-`[hesitation]`, `display_text` ≠ `tts_text`, etc.).

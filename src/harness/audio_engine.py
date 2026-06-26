@@ -65,9 +65,21 @@ class AudioEngine:
         blackhole_16ch_idx: int | None = None,
     ):
         detected = _auto_detect_devices()
-        self.bh2_idx = blackhole_2ch_idx or detected["blackhole_2ch"]
-        self.spk_idx = speakers_idx or detected["speakers"]
-        self.bh16_idx = blackhole_16ch_idx or detected["blackhole_16ch"]
+        # Use `is None` rather than truthy-or so explicit device index 0
+        # (a valid sounddevice id) doesn't get silently replaced by the
+        # auto-detected fallback.
+        self.bh2_idx = (
+            blackhole_2ch_idx if blackhole_2ch_idx is not None
+            else detected["blackhole_2ch"]
+        )
+        self.spk_idx = (
+            speakers_idx if speakers_idx is not None
+            else detected["speakers"]
+        )
+        self.bh16_idx = (
+            blackhole_16ch_idx if blackhole_16ch_idx is not None
+            else detected["blackhole_16ch"]
+        )
 
         self._capture_queue: queue.Queue[np.ndarray] = queue.Queue()
         self._capture_stream: sd.InputStream | None = None

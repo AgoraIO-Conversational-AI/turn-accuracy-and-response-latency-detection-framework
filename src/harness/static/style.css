@@ -339,6 +339,27 @@ dl.cat-key code {
   font-weight: 400;
 }
 
+/* Inline summary strip in the turn table's footer row. Same muted
+ * weight/colour the old "Average" label used; one row so screen
+ * recordings end on the headline numbers. */
+td.summary-strip {
+  text-align: right;
+  font-weight: 600;
+  color: #a0a0c0;
+  padding: 8px 12px;
+}
+td.summary-strip span {
+  margin-left: 18px;
+}
+td.summary-strip span:first-child {
+  margin-left: 0;
+}
+td.summary-strip b {
+  color: #e0e0e8;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
 .btn-play-single:hover {
   background: #3a3a5e;
   color: #e0e0e0;

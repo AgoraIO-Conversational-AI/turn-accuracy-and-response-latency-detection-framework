@@ -41,47 +41,49 @@
       "turn": 1,
       "speaker": 0,
       "start_ms": 0,
-      "end_ms": 4100,
-      "duration_ms": 4100,
-      "text": "Yeah, I got a bill for like [pause] six hundred and eighty dollars and I can't pay that all today.",
-      "word_count": 20,
+      "end_ms": 8640,
+      "duration_ms": 8640,
+      "text": "Yeah, I got a bill for [pause] six hundred and eighty dollars and I can't pay it all today.",
+      "word_count": 19,
       "hesitations": [
         {
-          "at_ms": 1600,
-          "duration_ms": 900
+          "at_ms": 1820,
+          "duration_ms": 1540
         }
       ],
-      "max_hesitation_ms": 900,
+      "max_hesitation_ms": 1540,
       "category": "pause",
       "expected_complete": false,
-      "target_gap_ms": 900,
+      "target_gap_ms": 0,
       "voice_id": "XnKbmWxx8uWjruHkpXmf",
-      "speech_start_ms": 20,
-      "speech_end_ms": 4080,
-      "rms_peak": 0.3094
+      "speech_start_ms": 60,
+      "speech_end_ms": 8620,
+      "rms_peak": 0.3186
     },
     {
       "turn": 2,
       "speaker": 1,
       "start_ms": 0,
-      "end_ms": 4360,
-      "duration_ms": 4360,
-      "text": "Michael Turner, [hesitation] [pause] April 14, 1985.",
-      "word_count": 7,
+      "end_ms": 5440,
+      "duration_ms": 5440,
+      "text": "Michael Turner [hesitation] [hesitation] [pause] urr April fourteenth, nineteen eighty five.",
+      "word_count": 11,
       "hesitations": [
         {
-          "at_ms": 900,
-          "duration_ms": 1220
+          "at_ms": 1100,
+          "duration_ms": 820
         }
       ],
-      "max_hesitation_ms": 1220,
+      "max_hesitation_ms": 820,
       "category": "hesitation",
       "expected_complete": false,
-      "target_gap_ms": 1000,
+      "target_gap_ms": 0,
       "voice_id": "maYJAY8nOIBZeB0UYfc5",
+      "alignment_start_s": 0.0,
+      "alignment_end_s": 5.462,
       "speech_start_ms": 40,
-      "speech_end_ms": 4340,
-      "rms_peak": 0.3002
+      "speech_end_ms": 5200,
+      "rms_peak": 0.3392
     },
     {
       "turn": 3,
@@ -105,24 +107,19 @@
       "turn": 4,
       "speaker": 3,
       "start_ms": 0,
-      "end_ms": 3940,
-      "duration_ms": 3940,
-      "text": "Ask them [hesitation] [pause] why insurance didn't cover it.",
-      "word_count": 9,
-      "hesitations": [
-        {
-          "at_ms": 900,
-          "duration_ms": 1220
-        }
-      ],
-      "max_hesitation_ms": 1220,
+      "end_ms": 3120,
+      "duration_ms": 3120,
+      "text": "Ask them [hesitation] [hesitation] urr why insurance didn't cover it.",
+      "word_count": 10,
+      "hesitations": [],
+      "max_hesitation_ms": 0,
       "category": "hesitation",
       "expected_complete": false,
-      "target_gap_ms": 900,
+      "target_gap_ms": 0,
       "voice_id": "VUGQSU6BSEjkbudnJbOj",
-      "speech_start_ms": 40,
-      "speech_end_ms": 3920,
-      "rms_peak": 0.3347
+      "speech_start_ms": 0,
+      "speech_end_ms": 3080,
+      "rms_peak": 0.3324
     },
     {
       "turn": 5,
@@ -166,8 +163,8 @@
       "start_ms": 0,
       "end_ms": 4220,
       "duration_ms": 4220,
-      "text": "I need to update my [hesitation] [pause] um, my billing address.",
-      "word_count": 11,
+      "text": "I need to update my [hesitation] [hesitation] [pause] um, my billing address.",
+      "word_count": 12,
       "hesitations": [
         {
           "at_ms": 1562,
@@ -231,8 +228,8 @@
       "start_ms": 0,
       "end_ms": 5940,
       "duration_ms": 5940,
-      "text": "My account number starts with [pause] eight six three.",
-      "word_count": 9,
+      "text": "My account number starts with [pause] [pause] [short pause] eight six three.",
+      "word_count": 12,
       "hesitations": [
         {
           "at_ms": 1743,
@@ -306,8 +303,8 @@
       "start_ms": 0,
       "end_ms": 5280,
       "duration_ms": 5280,
-      "text": "We could also try [hesitation] [pause] yeah, the other location might work better.",
-      "word_count": 13,
+      "text": "We could also try [hesitation] [hesitation] [pause] yeah, the other location might work better.",
+      "word_count": 14,
       "hesitations": [
         {
           "at_ms": 1642,
@@ -356,8 +353,8 @@
       "start_ms": 0,
       "end_ms": 3700,
       "duration_ms": 3700,
-      "text": "Could you transfer me to [pause] the billing department please?",
-      "word_count": 10,
+      "text": "Could you transfer me to [pause] [pause] [short pause] the billing department please?",
+      "word_count": 13,
       "hesitations": [
         {
           "at_ms": 1442,
@@ -381,8 +378,8 @@
       "start_ms": 0,
       "end_ms": 7280,
       "duration_ms": 7280,
-      "text": "I'm calling because [pause] I received the wrong item yesterday.",
-      "word_count": 10,
+      "text": "I'm calling because [pause] [pause] [short pause] I received the wrong item yesterday.",
+      "word_count": 13,
       "hesitations": [
         {
           "at_ms": 1440,
@@ -406,8 +403,8 @@
       "start_ms": 0,
       "end_ms": 4019,
       "duration_ms": 4019,
-      "text": "The appointment was for [hesitation] [pause] uh, I think it was three thirty.",
-      "word_count": 13,
+      "text": "The appointment was for [hesitation] [hesitation] [pause] uh, I think it was three thirty.",
+      "word_count": 14,
       "hesitations": [
         {
           "at_ms": 1740,

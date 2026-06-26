@@ -491,12 +491,20 @@ function renderTurnTable() {
     `;
   }
 
-  // summary footer row
+  // summary footer row — single inline strip across all columns. Stats
+  // are populated by renderSummary(); the layout sits where "Average"
+  // used to sit so screen recordings end on the headline numbers.
   html += `
     <tr id="turn-row-summary" class="summary-row">
-      <td colspan="6" style="text-align:right;font-weight:600;color:#a0a0c0;">Average</td>
-      <td class="ttfa-cell" id="ttfa-summary">—</td>
-      <td colspan="2"></td>
+      <td colspan="9" class="summary-strip">
+        <span>Turns <b id="stat-total">—</b></span>
+        <span>Completed <b id="stat-completed">—</b></span>
+        <span>Barge-ins <b id="stat-bargein">—</b></span>
+        <span>No Response <b id="stat-noresp">—</b></span>
+        <span>Avg <b id="stat-avg">—</b></span>
+        <span>Median <b id="stat-median">—</b></span>
+        <span>P95 <b id="stat-p95">—</b></span>
+      </td>
     </tr>
   `;
 
@@ -567,22 +575,21 @@ function resetTableStatuses() {
 }
 
 function updateSummaryRow() {
-  const el = document.getElementById("ttfa-summary");
+  // Client-side fallback so the Avg ticks live between server summary
+  // events. Server-side renderSummary() supersedes this when its
+  // summary message arrives. Bag of TTFAs excludes barge-ins and
+  // not-yet-measured turns.
+  const el = document.getElementById("stat-avg");
   if (!el) return;
   const ttfas = Object.values(state.results)
     .filter(r => !r.barge_in && r.ttfa_ms != null && r.ttfa_ms >= 0)
     .map(r => r.ttfa_ms);
   if (ttfas.length === 0) {
-    el.innerHTML = "—";
+    el.textContent = "—";
     return;
   }
   const avg = Math.round(ttfas.reduce((a, b) => a + b, 0) / ttfas.length);
-  let cls;
-  if (avg < 0) cls = "ttfa-negative";
-  else if (avg > 1500) cls = "ttfa-red";
-  else if (avg > 500) cls = "ttfa-yellow";
-  else cls = "ttfa-green";
-  el.innerHTML = `<span class="${cls}">${avg}ms</span>`;
+  el.textContent = `${avg}ms`;
 }
 
 function renderCurrentTurn(msg) {}

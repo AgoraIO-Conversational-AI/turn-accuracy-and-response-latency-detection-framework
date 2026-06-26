@@ -347,24 +347,29 @@ SENTENCES_BENCHMARK1 = [
         "display_text": "I'm going to say some random things to see how you respond. Please keep your responses to under ten words.",
         "expected_complete": True,
     },
-    # 1 — pause 900ms (billing amount; semantically incomplete after gap)
+    # 1 — pause (billing amount; semantically incomplete after gap).
+    #   ONE [pause] tag — two tags get scattered by ElevenLabs to two
+    #   different sentence positions, and the cleanup pass used to wipe
+    #   the words in between. Whatever silence ElevenLabs renders is
+    #   bit-perfectly zeroed in place; no resize.
     {
         "voice": 0,
         "category": "pause",
-        "tts_text": "Yeah, I got a bill for like [pause] [pause] six hundred and eighty dollars and I can't pay that all today.",
-        "display_text": "Yeah, I got a bill for like [pause] six hundred and eighty dollars and I can't pay that all today.",
+        "tts_text": "Yeah, I got a bill for [pause] six hundred and eighty dollars and I can't pay it all today.",
+        "display_text": "Yeah, I got a bill for [pause] six hundred and eighty dollars and I can't pay it all today.",
         "expected_complete": False,
-        "target_gap_ms": 900,
     },
-    # 2 — hesitation 1000ms (name + DoB; semantically ambiguous after gap —
-    #   "Michael Turner" alone is a plausible answer to "your name?")
+    # 2 — hesitation (name + DoB; semantically ambiguous after gap —
+    #   "Michael Turner" alone is a plausible answer to "your name?").
+    #   No comma so the [hesitation] tag's prosodic lengthening attaches
+    #   to "Turner", then audible "urr" before the natural silence.
+    #   Whatever silence ElevenLabs renders is zeroed in place; no resize.
     {
         "voice": 1,
         "category": "hesitation",
-        "tts_text": "Michael Turner, [hesitation] [hesitation] [pause] April fourteenth, nineteen eighty five.",
-        "display_text": "Michael Turner, [hesitation] [pause] April 14, 1985.",
+        "tts_text": "Michael Turner [hesitation] [hesitation] [pause] urr April fourteenth, nineteen eighty five.",
+        "display_text": "Michael Turner [hesitation] [hesitation] [pause] urr April fourteenth, nineteen eighty five.",
         "expected_complete": False,
-        "target_gap_ms": 1000,
     },
     # 3 — normal (short complete answer)
     {
@@ -374,15 +379,18 @@ SENTENCES_BENCHMARK1 = [
         "display_text": "Payment plan.",
         "expected_complete": True,
     },
-    # 4 — hesitation 900ms (semantically ambiguous after gap —
-    #   "Ask them" is a plausible-sounding fragment in isolation)
+    # 4 — hesitation (semantically ambiguous after gap — "Ask them" is a
+    #   plausible-sounding fragment in isolation). Audible filler "urr"
+    #   replaces the engineered silence: [hesitation] tags lengthen the
+    #   prosody of "them", then the speaker says "urr" rather than going
+    #   silent. No target_gap_ms / no zero-fill — natural ElevenLabs
+    #   audio with the filler is what the agent hears.
     {
         "voice": 3,
         "category": "hesitation",
-        "tts_text": "Ask them [hesitation] [hesitation] [pause] why insurance didn't cover it.",
-        "display_text": "Ask them [hesitation] [pause] why insurance didn't cover it.",
+        "tts_text": "Ask them [hesitation] [hesitation] urr why insurance didn't cover it.",
+        "display_text": "Ask them [hesitation] [hesitation] urr why insurance didn't cover it.",
         "expected_complete": False,
-        "target_gap_ms": 900,
     },
     # 5 — normal (decision confirmation)
     {
@@ -405,7 +413,7 @@ SENTENCES_BENCHMARK1 = [
         "voice": 2,
         "category": "hesitation",
         "tts_text": "I need to update my [hesitation] [hesitation] [pause] um, my billing address.",
-        "display_text": "I need to update my [hesitation] [pause] um, my billing address.",
+        "display_text": "I need to update my [hesitation] [hesitation] [pause] um, my billing address.",
         "expected_complete": False,
         "target_gap_ms": 800,
     },
@@ -430,7 +438,7 @@ SENTENCES_BENCHMARK1 = [
         "voice": 3,
         "category": "pause",
         "tts_text": "My account number starts with [pause] [pause] [short pause] eight six three.",
-        "display_text": "My account number starts with [pause] eight six three.",
+        "display_text": "My account number starts with [pause] [pause] [short pause] eight six three.",
         "expected_complete": False,
         "target_gap_ms": 1000,
     },
@@ -457,7 +465,7 @@ SENTENCES_BENCHMARK1 = [
         "voice": 1,
         "category": "hesitation",
         "tts_text": "We could also try [hesitation] [hesitation] [pause] yeah, the other location might work better.",
-        "display_text": "We could also try [hesitation] [pause] yeah, the other location might work better.",
+        "display_text": "We could also try [hesitation] [hesitation] [pause] yeah, the other location might work better.",
         "expected_complete": False,
         "target_gap_ms": 1200,
     },
@@ -475,7 +483,7 @@ SENTENCES_BENCHMARK1 = [
         "voice": 2,
         "category": "pause",
         "tts_text": "Could you transfer me to [pause] [pause] [short pause] the billing department please?",
-        "display_text": "Could you transfer me to [pause] the billing department please?",
+        "display_text": "Could you transfer me to [pause] [pause] [short pause] the billing department please?",
         "expected_complete": False,
         "target_gap_ms": 800,
     },
@@ -484,7 +492,7 @@ SENTENCES_BENCHMARK1 = [
         "voice": 0,
         "category": "pause",
         "tts_text": "I'm calling because [pause] [pause] [short pause] I received the wrong item yesterday.",
-        "display_text": "I'm calling because [pause] I received the wrong item yesterday.",
+        "display_text": "I'm calling because [pause] [pause] [short pause] I received the wrong item yesterday.",
         "expected_complete": False,
         "target_gap_ms": 1200,
     },
@@ -493,7 +501,7 @@ SENTENCES_BENCHMARK1 = [
         "voice": 3,
         "category": "hesitation",
         "tts_text": "The appointment was for [hesitation] [hesitation] [pause] uh, I think it was three thirty.",
-        "display_text": "The appointment was for [hesitation] [pause] uh, I think it was three thirty.",
+        "display_text": "The appointment was for [hesitation] [hesitation] [pause] uh, I think it was three thirty.",
         "expected_complete": False,
         "target_gap_ms": 1000,
     },
@@ -615,7 +623,7 @@ def _wav_duration_ms(wav_path: Path) -> int:
     return int(float(r.stdout.strip()) * 1000)
 
 
-def _analyze_speech_boundaries(wav_path: Path) -> dict:
+def _analyze_speech_boundaries(wav_path: Path, min_gap_ms: int = 450) -> dict:
     """Analyze WAV amplitude to find precise speech start/end and silence gaps.
 
     Returns dict with:
@@ -623,6 +631,10 @@ def _analyze_speech_boundaries(wav_path: Path) -> dict:
       - speech_end_ms: last moment RMS exceeds threshold
       - silence_gaps: list of {start_ms, end_ms, duration_ms} for internal gaps
       - rms_peak: peak RMS value across the file
+
+    `min_gap_ms` controls which internal silences are reported. The default
+    450ms suits engineered [pause] gaps; lower values (e.g. 150-200ms) catch
+    natural ElevenLabs thinking pauses around prosody / filler words.
     """
     data, sr = sf.read(str(wav_path), dtype="float32")
     if data.ndim > 1:
@@ -658,8 +670,8 @@ def _analyze_speech_boundaries(wav_path: Path) -> dict:
             speech_end_ms = (i + 1) * RMS_WINDOW_MS
             break
 
-    # find internal silence gaps (>= 200ms of silence between speech)
-    min_gap_frames = int(450 / RMS_WINDOW_MS)
+    # find internal silence gaps (>= min_gap_ms of silence between speech)
+    min_gap_frames = int(min_gap_ms / RMS_WINDOW_MS)
     silence_gaps = []
     in_silence = False
     gap_start = 0
@@ -764,17 +776,24 @@ def _make_comfort_noise(sr: int, duration_samples: int, reference_data: np.ndarr
     return filtered
 
 
-def _zero_out_gap(wav_path: Path, fade_ms: int = 3) -> dict | None:
+def _zero_out_gap(
+    wav_path: Path, fade_ms: int = 3, min_gap_ms: int = 450,
+) -> dict | None:
     """Bit-perfectly zero the largest silence gap, with a short fade at edges.
 
     Reads the current gap, walks outward from its midpoint until each side
     hits the first non-silent sample, then writes integer zeros in between.
     A short linear fade just outside each edge avoids click artifacts.
 
+    `min_gap_ms` is forwarded to _analyze_speech_boundaries; lower it (e.g.
+    150-200ms) when the source audio's "thinking pause" is shorter than the
+    450ms default, as happens with natural ElevenLabs [hesitation]+filler
+    output.
+
     Returns the {start_ms, end_ms, duration_ms} of the zeroed region (sample-
     exact, not RMS-window-quantized), or None if no gap was found.
     """
-    boundaries = _analyze_speech_boundaries(wav_path)
+    boundaries = _analyze_speech_boundaries(wav_path, min_gap_ms=min_gap_ms)
     gaps = boundaries["silence_gaps"]
     if not gaps:
         return None
@@ -854,26 +873,35 @@ def _find_zero_run(wav_path: Path, min_ms: int = 50) -> dict | None:
 def _set_gap_duration(
     wav_path: Path, target_ms: int, zero_fill: bool = False,
 ) -> list[dict]:
-    """Ensure exactly one silence gap at exactly target_ms duration.
+    """Resize the LARGEST silence gap to target_ms.
 
-    First enforces a single gap (removes extras), then trims or stretches
-    it to hit the target precisely. Stretching inserts comfort noise instead
-    of digital silence so the gap sounds like a natural room pause.
+    Does NOT call _enforce_single_gap — that helper merges multiple gaps
+    by deleting all audio between them, which can wipe out entire phrases
+    when ElevenLabs renders natural breath-pauses in addition to the
+    engineered [pause]/[hesitation] gap (saw this on turn 1: "six hundred
+    and eighty dollars" got chopped because there was a natural pause
+    between "dollars" and "and"). Instead this function picks the longest
+    detected silence region — the engineered gap, by construction — and
+    trims/stretches just that one. Natural inter-word pauses are left
+    alone.
 
-    When zero_fill=True the gap is bit-perfectly zeroed after sizing, with a
-    short linear fade just outside each edge to avoid click artifacts. Used
-    by the Benchmark 1 corpus so amplitude-driven EOT detectors see a true
-    zero-amplitude window.
+    When zero_fill=True the resized gap is bit-perfectly zeroed with a
+    short linear fade just outside each edge to avoid click artifacts.
+    Used by the Benchmark 1 corpus so amplitude-driven EOT detectors see
+    a true zero-amplitude window.
     Returns the final gap list.
     """
-    _enforce_single_gap(wav_path)
-
     data, sr = sf.read(str(wav_path), dtype="float32")
     if data.ndim > 1:
         data = data[:, 0]
 
     boundaries = _analyze_speech_boundaries(wav_path)
     gaps = boundaries["silence_gaps"]
+    if len(gaps) > 1:
+        # Use the largest gap, not the first. The engineered [pause]/
+        # [hesitation] silence is the largest by construction; smaller
+        # gaps are natural inter-word breaths and must stay intact.
+        gaps = [max(gaps, key=lambda g: g["duration_ms"])]
 
     def _fill(n_samples: int) -> np.ndarray:
         if zero_fill:
@@ -1455,6 +1483,22 @@ def generate_benchmark1(
                 adjusted = _set_gap_duration(wav_path, target_gap, zero_fill=True)
                 if adjusted:
                     print(f"         set gap to {target_gap}ms (zero-fill)")
+            elif category in ("hesitation", "hesitation2", "pause"):
+                # No target_gap_ms — use whatever silence ElevenLabs gave
+                # but still bit-perfect zero it so the agent sees a true
+                # zero-amplitude window. _zero_out_gap picks the largest
+                # detected silence and zeroes just that region. Drop the
+                # min-gap threshold to 150 ms so we catch short natural
+                # thinking pauses around [hesitation] / filler words —
+                # the default 450 ms threshold misses them and leaves
+                # quiet-but-non-zero content where the agent could trip
+                # on residual amplitude.
+                zeroed = _zero_out_gap(wav_path, min_gap_ms=150)
+                if zeroed:
+                    print(f"         zero-filled natural gap "
+                          f"({zeroed['duration_ms']}ms at {zeroed['start_ms']}ms)")
+                else:
+                    print(f"         no natural silence found (≥150ms) to zero")
 
             dur = _wav_duration_ms(wav_path)
             turn_entry["duration_ms"] = dur

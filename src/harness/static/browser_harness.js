@@ -332,8 +332,25 @@ async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBefore
   }
   const startWall = performance.now();
   _log(`  → primary.play() called at t+${(startWall - t_call).toFixed(0)}ms`);
-  primary.play();
-  if (monitor) monitor.play();
+  // Catch play() rejections so the caller doesn't hang on `await
+  // playPromise` if the browser refuses (autoplay block, user-gesture
+  // expiry, MediaError after canplaythrough). On primary failure we
+  // resolve `ended` immediately so the run can move on; the upstream
+  // result will record no-response / timeout instead of stalling the
+  // queue indefinitely.
+  primary.play().catch((e) => {
+    console.warn("primary.play() rejected:", e);
+    _log(`  ✗ primary.play() rejected: ${e?.message || e}`);
+    endedResolve();
+  });
+  if (monitor) {
+    monitor.play().catch((e) => {
+      // Monitor failure isn't fatal — operator just won't hear the
+      // playback locally. Log and carry on.
+      console.warn("monitor.play() rejected:", e);
+      _log(`  ✗ monitor.play() rejected (non-fatal): ${e?.message || e}`);
+    });
+  }
   // Cleanup releases the underlying MediaElement audio node + decoder
   // so we don't leak one (or two) per turn. Without this, Run All over
   // 25 turns leaves ~50 elements holding sample data + sink references,
