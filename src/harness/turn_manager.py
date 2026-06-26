@@ -21,30 +21,30 @@ OUT_DIR = BASE_DIR / "out"
 # available sources: name -> (turns_index.json path, turns dir)
 # Order matters — first entry becomes the default in the UI dropdown.
 SOURCES = {
-    "benchmark_1_zeroed": {
-        # Paired with benchmark_1_original (same synthesized audio, same
-        # detector-defined test-gap window). In this source the test-gap
-        # window is written to bit-perfect zero with a 3 ms linear edge
-        # fade — useful for amplitude-driven EOT detection where the
-        # agent must see a true zero-amplitude window. The canonical
-        # paired test-gap value is hesitations.duration_ms (= detector
-        # window). Each turn also carries a zero_run_ms diagnostic with
-        # the actual contiguous int16-zero run length; treat as info
-        # only, never as the paired duration.
-        "label": "Benchmark 1 Zeroed",
-        "index": OUT_DIR / "Benchmark_1_Zeroed" / "turns_index.json",
-        "turns_dir": OUT_DIR / "Benchmark_1_Zeroed" / "turns",
-    },
     "benchmark_1_original": {
         # Paired with benchmark_1_zeroed (same synthesized audio, same
         # detector-defined test-gap window). In this source the test-gap
         # window contains the raw natural ElevenLabs content — quiet
-        # decay tails, background noise. Useful for testing against
-        # agents that depend on prosodic / energy cues rather than a
-        # hard zero-amplitude floor.
+        # decay tails, background noise. The default source: tests
+        # against the realistic prompt that any deployed agent would
+        # actually hear.
         "label": "Benchmark 1 Original",
         "index": OUT_DIR / "Benchmark_1_Original" / "turns_index.json",
         "turns_dir": OUT_DIR / "Benchmark_1_Original" / "turns",
+    },
+    "benchmark_1_zeroed": {
+        # Paired with benchmark_1_original (same synthesized audio, same
+        # detector-defined test-gap window). In this source the test-gap
+        # window is written to bit-perfect zero with a 3 ms linear edge
+        # fade — controlled benchmark for amplitude-driven EOT detection
+        # where the agent must see a true zero-amplitude window. The
+        # canonical paired test-gap value is hesitations.duration_ms
+        # (= detector window). Each turn also carries a zero_run_ms
+        # diagnostic with the actual contiguous int16-zero run length;
+        # treat as info only, never as the paired duration.
+        "label": "Benchmark 1 Zeroed",
+        "index": OUT_DIR / "Benchmark_1_Zeroed" / "turns_index.json",
+        "turns_dir": OUT_DIR / "Benchmark_1_Zeroed" / "turns",
     },
     "sovereign5": {
         "label": "Lucy and Tabby",
@@ -134,7 +134,7 @@ class TurnManager:
         self.run = RunState()
         self._turns_data: list[dict] = []
         self._stop_requested = False
-        self._current_source = "benchmark_1_zeroed"
+        self._current_source = "benchmark_1_original"
         self._load_turns()
 
     def _load_turns(self):
