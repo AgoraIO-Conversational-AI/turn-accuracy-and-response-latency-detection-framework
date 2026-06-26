@@ -511,6 +511,13 @@ SENTENCES_BENCHMARK1 = [
 # Target gap range is wider — 1000-2000 ms — for testing agents
 # against longer mid-utterance pauses. Original-only: no Zeroed pair.
 SENTENCES_BENCHMARK2 = [
+    # 0 — normal opener: tells the agent under test what's about to
+    #   happen. Same text as Benchmark 1's turn 0 but in voice 4 so the
+    #   instruction and the hesitation utterances share a single
+    #   speaker throughout.
+    {"voice": 4, "category": "normal",
+     "text": "I'm going to say some random things to see how you respond. Please keep your responses to under ten words.",
+     "expected_complete": True},
     {"voice": 4, "category": "hesitation",
      "text": "Ask them [hesitation] [hesitation] urr why insurance didn't cover it.",
      "expected_complete": False},
@@ -1694,11 +1701,43 @@ def generate_benchmark2(api_key: str, force: bool = False) -> dict:
             entry["speech_start_ms"] = b["speech_start_ms"]
             entry["speech_end_ms"] = b["speech_end_ms"]
             entry["rms_peak"] = b["rms_peak"]
-            if b["silence_gaps"]:
+            if b["silence_gaps"] and sentence["category"] == "hesitation":
                 g = max(b["silence_gaps"], key=lambda x: x["duration_ms"])
                 entry["hesitations"] = [{"at_ms": g["start_ms"], "duration_ms": g["duration_ms"]}]
                 entry["max_hesitation_ms"] = g["duration_ms"]
             turns_data.append(entry)
+            continue
+
+        # Normal turns (opener, etc.) — single render, no re-roll
+        if sentence["category"] != "hesitation":
+            print(f"  [{turn_num:03d}] S{speaker} {sentence['category']:12s} generating...")
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tmp_mp3 = Path(tmp.name)
+            api_resp = _synthesize_with_timestamps(text, voice_id, api_key, tmp_mp3)
+            ok = False
+            if api_resp is not None:
+                ok = _mp3_to_wav(tmp_mp3, wav_path)
+                if ok:
+                    align_info = _extract_alignment_info(api_resp)
+                    if align_info:
+                        entry["alignment_start_s"] = align_info["alignment_start_s"]
+                        entry["alignment_end_s"] = align_info["alignment_end_s"]
+            tmp_mp3.unlink(missing_ok=True)
+            if not ok:
+                print(f"         FAILED", file=sys.stderr)
+                turns_data.append(entry)
+                continue
+            dur = _wav_duration_ms(wav_path)
+            entry["duration_ms"] = dur; entry["end_ms"] = dur
+            bb = _analyze_speech_boundaries(wav_path, min_gap_ms=BENCHMARK1_MIN_GAP_MS)
+            entry["speech_start_ms"] = bb["speech_start_ms"]
+            entry["speech_end_ms"] = bb["speech_end_ms"]
+            entry["rms_peak"] = bb["rms_peak"]
+            # normals don't carry hesitations even if the detector spots
+            # a long-enough quiet region
+            print(f"         -> {dur}ms (speech {bb['speech_start_ms']}-{bb['speech_end_ms']}ms)")
+            turns_data.append(entry)
+            time.sleep(RATE_LIMIT_SLEEP)
             continue
 
         print(f"  [{turn_num:03d}] S{speaker} hesitation  rolling (target {min_ok}-{max_ok}ms)...")
