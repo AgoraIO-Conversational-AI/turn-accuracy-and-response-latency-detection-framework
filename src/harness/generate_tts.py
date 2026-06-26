@@ -401,11 +401,13 @@ SENTENCES_BENCHMARK1 = [
         "text": "Yes.",
         "expected_complete": True,
     },
-    # 7 — hesitation (voice 2; short sentence to bias gap shorter)
+    # 7 — hesitation (voice 4, borrowed from Benchmark 2's turn 2 — a
+    #   firmly long render; double [pause] consistently pulls voice 4
+    #   into the 2-2.5 s range here)
     {
-        "voice": 2,
+        "voice": 4,
         "category": "hesitation",
-        "text": "Update my [pause] billing address please.",
+        "text": "Update my [pause] [pause] billing address please.",
         "expected_complete": False,
     },
     # 8 — ambiguous (kept from original turn 4)
