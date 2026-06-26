@@ -12,6 +12,9 @@ export const VAD_MIN_SILENCE_MS = 300;
 export const RESPONSE_SILENCE_TIMEOUT_S = 1.5;
 export const BARGE_IN_SILENCE_TIMEOUT_S = 3.0;
 export const MAX_WAIT_FOR_RESPONSE_S = 8.0;
+export const OUTPUT_RMS_THRESHOLD = 0.005;
+export const OUTPUT_RMS_WINDOW_MS = 20;
+export const PLAYING_FALLBACK_MS = 250;
 
 // --- Device enumeration ---
 
@@ -152,8 +155,8 @@ async function startCapture(inputDeviceId) {
   let callbackCount = 0;          // since arm — diagnoses batching
   // Peak RMS observed since arm — answers "was audio arriving at all?"
   // independently of whether it crossed the VAD threshold. Distinguishes
-  // true silence (peak ≈ 0) from below-threshold audio (peak ~0.001-0.009)
-  // from clean speech (peak above VAD_RMS_THRESHOLD=0.01) when the turn
+  // true silence (peak ≈ 0) from below-threshold audio (peak < VAD_RMS_THRESHOLD)
+  // from clean speech (peak above VAD_RMS_THRESHOLD) when the turn
   // ends in no_response.
   let peakRmsThisTurn = 0;
 
@@ -264,12 +267,82 @@ async function startCapture(inputDeviceId) {
 
 // --- Playback ---
 
+function formatError(e) {
+  return e?.message || String(e);
+}
+
+async function decodeWavTiming(wavUrl) {
+  const resp = await fetch(wavUrl, { cache: "force-cache" });
+  if (!resp.ok) {
+    throw new Error(`fetch ${resp.status}`);
+  }
+  const bytes = await resp.arrayBuffer();
+  const DecodeCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const ctx = DecodeCtx
+    ? new DecodeCtx(1, 1, 48000)
+    : new AudioContext();
+  let audioBuffer;
+  try {
+    audioBuffer = await ctx.decodeAudioData(bytes.slice(0));
+  } finally {
+    if (typeof ctx.close === "function") {
+      try { ctx.close(); } catch {}
+    }
+  }
+
+  const sampleRate = audioBuffer.sampleRate;
+  const durationMs = audioBuffer.duration * 1000;
+  const windowSamples = Math.max(1, Math.round(sampleRate * OUTPUT_RMS_WINDOW_MS / 1000));
+  const channels = [];
+  for (let c = 0; c < audioBuffer.numberOfChannels; c++) {
+    channels.push(audioBuffer.getChannelData(c));
+  }
+
+  let firstActiveWindow = null;
+  let lastActiveWindow = null;
+  const totalWindows = Math.ceil(audioBuffer.length / windowSamples);
+  for (let w = 0; w < totalWindows; w++) {
+    const start = w * windowSamples;
+    const end = Math.min(audioBuffer.length, start + windowSamples);
+    let sumSq = 0;
+    let n = 0;
+    for (let i = start; i < end; i++) {
+      let sample = 0;
+      for (let c = 0; c < channels.length; c++) sample += channels[c][i];
+      sample /= channels.length || 1;
+      sumSq += sample * sample;
+      n++;
+    }
+    const rms = n > 0 ? Math.sqrt(sumSq / n) : 0;
+    if (rms >= OUTPUT_RMS_THRESHOLD) {
+      if (firstActiveWindow === null) firstActiveWindow = w;
+      lastActiveWindow = w;
+    }
+  }
+
+  const firstOutputSpeechMs =
+    firstActiveWindow !== null ? firstActiveWindow * OUTPUT_RMS_WINDOW_MS : null;
+  const lastOutputSpeechMs =
+    lastActiveWindow !== null
+      ? Math.min(durationMs, (lastActiveWindow + 1) * OUTPUT_RMS_WINDOW_MS)
+      : null;
+
+  return {
+    decoded_duration_ms: durationMs,
+    first_output_speech_ms: firstOutputSpeechMs,
+    last_output_speech_ms: lastOutputSpeechMs,
+    output_tail_ms: lastOutputSpeechMs !== null ? Math.max(0, durationMs - lastOutputSpeechMs) : null,
+    output_rms_threshold: OUTPUT_RMS_THRESHOLD,
+    output_rms_window_ms: OUTPUT_RMS_WINDOW_MS,
+    output_sample_rate: sampleRate,
+  };
+}
+
 // Plays a wav URL through one or two output devices via <audio> +
-// setSinkId. Returns a controller {startWall, ended (Promise), stop()}.
+// setSinkId. Returns a controller {startWall, playbackStart, ended, stop()}.
 // stop() halts playback and resolves `ended` immediately so a poll
 // loop awaiting it can move on.
 async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBeforePlay, log) {
-  const tag = (label, t0) => `${label}=${(performance.now() - t0).toFixed(0)}ms`;
   const t_call = performance.now();
   const _log = log || (() => {});
 
@@ -318,12 +391,24 @@ async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBefore
 
   let endedResolve;
   const ended = new Promise((resolve) => { endedResolve = resolve; });
+  let playbackStartResolve;
+  let playbackStartSettled = false;
+  let playbackStartTimer = null;
+  const playbackStart = new Promise((resolve) => { playbackStartResolve = resolve; });
+  const settlePlaybackStart = (wall, source) => {
+    if (playbackStartSettled) return;
+    playbackStartSettled = true;
+    if (playbackStartTimer !== null) clearTimeout(playbackStartTimer);
+    playbackStartResolve({ wall, source });
+  };
   primary.addEventListener("ended", () => endedResolve(), { once: true });
   // The Audio element's own 'playing' event fires when output actually
   // begins. Surfacing it lets us see browser-side play scheduling vs.
   // when we called .play().
   primary.addEventListener("playing", () => {
-    _log(`  Audio element 'playing' event fired (browser confirms playback) t+${(performance.now() - t_call).toFixed(0)}ms`);
+    const wall = performance.now();
+    _log(`  Audio element 'playing' event fired (browser confirms playback) t+${(wall - t_call).toFixed(0)}ms`);
+    settlePlaybackStart(wall, "playing");
   }, { once: true });
   // Arm immediately before play() so startWall and the VAD's
   // "first speech since arm" clock align to the same instant.
@@ -331,6 +416,10 @@ async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBefore
     try { armBeforePlay(); } catch (e) { console.warn("armBeforePlay threw:", e); }
   }
   const startWall = performance.now();
+  playbackStartTimer = setTimeout(
+    () => settlePlaybackStart(startWall, "play_call_fallback"),
+    PLAYING_FALLBACK_MS,
+  );
   _log(`  → primary.play() called at t+${(startWall - t_call).toFixed(0)}ms`);
   // Catch play() rejections so the caller doesn't hang on `await
   // playPromise` if the browser refuses (autoplay block, user-gesture
@@ -341,6 +430,7 @@ async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBefore
   primary.play().catch((e) => {
     console.warn("primary.play() rejected:", e);
     _log(`  ✗ primary.play() rejected: ${e?.message || e}`);
+    settlePlaybackStart(startWall, "play_rejected");
     endedResolve();
   });
   if (monitor) {
@@ -365,6 +455,7 @@ async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBefore
   const stop = () => {
     release(primary);
     if (monitor) release(monitor);
+    settlePlaybackStart(startWall, "stopped_before_playing");
     endedResolve();
   };
   // Auto-release once playback finishes (the natural path through
@@ -373,7 +464,7 @@ async function startPlayback(wavUrl, primaryOutputId, monitorOutputId, armBefore
     release(primary);
     if (monitor) release(monitor);
   });
-  return { startWall, ended, stop };
+  return { startWall, playbackStart, ended, stop };
 }
 
 // --- Run a single turn ---
@@ -407,6 +498,9 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
     const gapStart = h.at_ms - (turn.start_ms || 0);
     return [gapStart, gapStart + h.duration_ms];
   });
+  const outputTimingPromise = decodeWavTiming(wavUrl).catch((e) => ({
+    error: formatError(e),
+  }));
 
   const emit = (p, partial) => phase && phase(p, partial);
   throwIfAborted();
@@ -474,13 +568,13 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
   const result = {
     turn: turn.turn,
     ttfa_ms: null,
+    ttfa2_ms: null,
     barge_in: false,
     barge_in_at_ms: null,
     response_duration_ms: null,
     status: "playing",
   };
   let firstSpeechAudioMs = null;
-  let ttfaAnnounced = false;
 
   const startWall = cap.startWall;
   while (true) {
@@ -550,7 +644,6 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
       // can flip the row's status badge + TTFA cell the instant we
       // know — without waiting for the rest of the turn to complete.
       emit(result.barge_in ? "barge_in" : "response_detected", { ...result });
-      ttfaAnnounced = true;
     }
 
     // no-response timeout
@@ -560,7 +653,7 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
         // Three-way classification of why no audio crossed the VAD
         // threshold:
         //   peakRms ≈ 0           → true silence, input mic dead / agent disconnected
-        //   peakRms < threshold   → audio arrived but below 0.01 — TTS too quiet, gain too low, routing OK
+        //   peakRms < threshold   → audio arrived but below the browser VAD threshold — TTS too quiet, gain too low, routing OK
         //   peakRms ≥ threshold + no speech_start → real logic bug; investigate
         const peak = cap.peakRms ?? 0;
         const threshold = VAD_RMS_THRESHOLD;
@@ -615,6 +708,129 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
   }
 
   try { await playPromise; } catch {}
+  let outputTiming = null;
+  let playbackStartInfo = null;
+  if (!signal?.aborted) {
+    try {
+      outputTiming = await outputTimingPromise;
+    } catch (e) {
+      outputTiming = { error: formatError(e) };
+    }
+    try {
+      playbackStartInfo = playController?.playbackStart
+        ? await playController.playbackStart
+        : { wall: playController?.startWall ?? cap.startWall, source: "missing_playback_controller" };
+    } catch (e) {
+      playbackStartInfo = {
+        wall: playController?.startWall ?? cap.startWall,
+        source: "playback_start_error",
+        error: formatError(e),
+      };
+    }
+
+    if (outputTiming?.error) {
+      result.ttfa2_ms = null;
+      result.playback_start_source = "decode_failed";
+      result.ttfa2_error = outputTiming.error;
+    } else if (playbackStartInfo && outputTiming) {
+      const playStartWall = playbackStartInfo.wall;
+      const inputSpeechStartWall = cap.firstSpeechWallMs;
+      const indexSpeechEndMs =
+        turn.speech_end_ms != null ? Number(turn.speech_end_ms) : null;
+      const hasIndexSpeechEnd = Number.isFinite(indexSpeechEndMs);
+      const promptEndOffsetMs = hasIndexSpeechEnd
+        ? indexSpeechEndMs
+        : outputTiming.last_output_speech_ms;
+      const promptEndMethod = hasIndexSpeechEnd
+        ? "index_speech_end_ms"
+        : "decoded_wav_rms_fallback";
+      const promptEndWall =
+        promptEndOffsetMs !== null && promptEndOffsetMs !== undefined
+          ? playStartWall + promptEndOffsetMs
+          : null;
+
+      Object.assign(result, {
+        decoded_duration_ms: outputTiming.decoded_duration_ms,
+        first_output_speech_ms: outputTiming.first_output_speech_ms,
+        last_output_speech_ms: outputTiming.last_output_speech_ms,
+        output_tail_ms: outputTiming.output_tail_ms,
+        output_rms_threshold: outputTiming.output_rms_threshold,
+        output_rms_window_ms: outputTiming.output_rms_window_ms,
+        output_sample_rate: outputTiming.output_sample_rate,
+        playback_start_source: playbackStartInfo.source,
+        media_ended_minus_playing_ms: playbackEndWall != null ? playbackEndWall - playStartWall : null,
+        first_input_from_play_ms: inputSpeechStartWall != null ? inputSpeechStartWall - playStartWall : null,
+        ttfa_index_ms: firstSpeechAudioMs != null ? firstSpeechAudioMs - expectedEndMs : null,
+        prompt_end_ms: promptEndOffsetMs,
+        prompt_tail_ms: promptEndOffsetMs != null ? Math.max(0, expectedEndMs - promptEndOffsetMs) : null,
+        prompt_end_wall_method: promptEndMethod,
+      });
+
+      if (inputSpeechStartWall != null && promptEndWall != null) {
+        result.ttfa2_ms = inputSpeechStartWall - promptEndWall;
+        result.ttfa2_hard_barge_in = inputSpeechStartWall < promptEndWall;
+        result.ttfa2_gap_barge_in = hesWindows.some(([gapStartMs, gapEndMs]) => {
+          const gapStartWall = playStartWall + gapStartMs;
+          const gapEndWall = playStartWall + gapEndMs;
+          return inputSpeechStartWall >= gapStartWall && inputSpeechStartWall <= gapEndWall;
+        });
+      } else if (promptEndWall == null) {
+        result.ttfa2_error = "no_output_speech_detected";
+      }
+    }
+
+    console.info("[bench timing]", {
+      turn: turn.turn,
+      turn_duration_ms: expectedEndMs,
+      decoded_duration_ms: result.decoded_duration_ms ?? null,
+      ended_minus_playing_ms: result.media_ended_minus_playing_ms ?? null,
+      measured_output_active_ms: result.last_output_speech_ms ?? null,
+      prompt_end_ms: result.prompt_end_ms ?? null,
+      prompt_tail_ms: result.prompt_tail_ms ?? null,
+      output_tail_ms: result.output_tail_ms ?? null,
+      ttfa_ms: result.ttfa_ms,
+      ttfa_index_ms: result.ttfa_index_ms ?? null,
+      ttfa_wall_ms: result.ttfa_wall_ms ?? null,
+      ttfa2_ms: result.ttfa2_ms,
+      first_input_from_play_ms: result.first_input_from_play_ms ?? null,
+      playback_start_source: result.playback_start_source ?? null,
+      prompt_end_wall_method: result.prompt_end_wall_method ?? null,
+      ttfa2_hard_barge_in: result.ttfa2_hard_barge_in ?? false,
+      ttfa2_gap_barge_in: result.ttfa2_gap_barge_in ?? false,
+      ttfa2_error: result.ttfa2_error ?? null,
+      vad_frame_ms: (VAD_FRAME / VAD_RATE) * 1000,
+    });
+    console.info(
+      `[bench timing flat] turn=${turn.turn} ` +
+      `ttfa=${result.ttfa_ms?.toFixed?.(1) ?? "null"} ` +
+      `ttfa2=${result.ttfa2_ms?.toFixed?.(1) ?? "null"} ` +
+      `ttfa_wall=${result.ttfa_wall_ms?.toFixed?.(1) ?? "null"} ` +
+      `ttfa_index=${result.ttfa_index_ms?.toFixed?.(1) ?? "null"} ` +
+      `input_from_play=${result.first_input_from_play_ms?.toFixed?.(1) ?? "null"} ` +
+      `turn_duration=${expectedEndMs?.toFixed?.(1) ?? expectedEndMs} ` +
+      `index_speech_end=${turn.speech_end_ms != null ? Number(turn.speech_end_ms).toFixed(1) : "null"} ` +
+      `prompt_end=${result.prompt_end_ms?.toFixed?.(1) ?? "null"} ` +
+      `prompt_tail=${result.prompt_tail_ms?.toFixed?.(1) ?? "null"} ` +
+      `decoded_duration=${result.decoded_duration_ms?.toFixed?.(1) ?? "null"} ` +
+      `last_output_speech=${result.last_output_speech_ms?.toFixed?.(1) ?? "null"} ` +
+      `output_tail=${result.output_tail_ms?.toFixed?.(1) ?? "null"} ` +
+      `ended_minus_playing=${result.media_ended_minus_playing_ms?.toFixed?.(1) ?? "null"} ` +
+      `playback_start_source=${result.playback_start_source ?? "null"} ` +
+      `prompt_end_method=${result.prompt_end_wall_method ?? "null"} ` +
+      `ttfa2_error=${result.ttfa2_error ?? "null"}`,
+    );
+
+    if (turn.speech_end_ms != null && outputTiming?.last_output_speech_ms != null) {
+      const drift = Math.abs(outputTiming.last_output_speech_ms - turn.speech_end_ms);
+      if (drift > 30) {
+        console.warn(
+          `[bench drift] turn ${turn.turn}: decoded last_output_speech ` +
+          `${outputTiming.last_output_speech_ms.toFixed(1)}ms vs index ` +
+          `${Number(turn.speech_end_ms).toFixed(1)}ms (drift ${drift.toFixed(1)}ms)`,
+        );
+      }
+    }
+  }
   if (ownCap) cap.stop();
   else cap.disarm();  // persistent: VAD keeps running but ignores frames between turns
   if (signal) signal.removeEventListener("abort", onAbort);

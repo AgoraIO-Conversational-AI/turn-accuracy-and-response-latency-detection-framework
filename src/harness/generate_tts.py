@@ -505,6 +505,39 @@ SENTENCES_BENCHMARK1 = [
     },
 ]
 
+# ── Benchmark 2 Original ──────────────────────────────────────────────
+# Same hesitation texts as Benchmark 1 but all rendered in voice 4
+# (the new BZgkqPqms7Kj9ulSkVzn voice that honors [hesitation] tags).
+# Target gap range is wider — 1000-2000 ms — for testing agents
+# against longer mid-utterance pauses. Original-only: no Zeroed pair.
+SENTENCES_BENCHMARK2 = [
+    {"voice": 4, "category": "hesitation",
+     "text": "Ask them [hesitation] [hesitation] urr why insurance didn't cover it.",
+     "expected_complete": False},
+    {"voice": 4, "category": "hesitation",
+     "text": "Update my [pause] billing address please.",
+     "expected_complete": False},
+    {"voice": 4, "category": "hesitation",
+     "text": "The last time I checked it was [pause] somewhere around forty five dollars.",
+     "expected_complete": False},
+    {"voice": 4, "category": "hesitation",
+     "text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
+     "expected_complete": False},
+    {"voice": 4, "category": "hesitation",
+     "text": "We could also try [hesitation] [pause] yeah, the other location might work better.",
+     "expected_complete": False},
+    {"voice": 4, "category": "hesitation",
+     "text": "I was going to renew but then the [hesitation] [hesitation] [pause] price went up by almost double.",
+     "expected_complete": False},
+    {"voice": 4, "category": "hesitation",
+     "text": "The appointment was for [hesitation] [hesitation] [pause] uh, I think it was three thirty.",
+     "expected_complete": False},
+    {"voice": 4, "category": "hesitation",
+     "text": "The problem is my old subscription [hesitation] [hesitation] [pause] [pause] was cancelled without any notice.",
+     "expected_complete": False},
+]
+
+
 API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 MODEL_ID = "eleven_v3"
 TARGET_SR = 48000
@@ -1609,6 +1642,155 @@ def generate_benchmark1(
     return {"original": turns_orig, "zeroed": turns_zeroed}
 
 
+BENCHMARK2_ORIG_DIR = BASE_DIR / "out" / "Benchmark_2_Original"
+BENCHMARK2_TARGET_BAND = (1000, 2000)  # ms — design band for Benchmark 2 gaps
+BENCHMARK2_MAX_ATTEMPTS = 7            # ElevenLabs is non-deterministic; re-roll up to N
+
+
+def generate_benchmark2(api_key: str, force: bool = False) -> dict:
+    """Generate Benchmark 2 Original — voice-4 hesitation corpus.
+
+    Same hesitation TEXTS as Benchmark 1 but every turn rendered in
+    voice 4 (BZgkqPqms7Kj9ulSkVzn — the voice that honors [hesitation]
+    tags). Target gap band 1000-2000 ms (wider than B1's 500-1500).
+    Re-rolls up to BENCHMARK2_MAX_ATTEMPTS per turn until the
+    detector-defined gap window lands in band. Original-only — no
+    paired Zeroed source.
+
+    Each turn entry shares the same fields as Benchmark 1 Original:
+    hesitations.at_ms / duration_ms is the detector window (multiple
+    of 20 ms from the RMS scan).
+    """
+    turns_dir = BENCHMARK2_ORIG_DIR / "turns"
+    turns_dir.mkdir(parents=True, exist_ok=True)
+    min_ok, max_ok = BENCHMARK2_TARGET_BAND
+    target_mid = (min_ok + max_ok) // 2
+
+    turns_data = []
+    for turn_num, sentence in enumerate(SENTENCES_BENCHMARK2):
+        speaker = sentence["voice"]
+        voice_id = VOICES[speaker]
+        text = sentence["text"]
+        speaker_dir = turns_dir / f"speaker{speaker}"
+        speaker_dir.mkdir(parents=True, exist_ok=True)
+        wav_path = speaker_dir / f"turn_{turn_num:03d}.wav"
+
+        entry = {
+            "turn": turn_num, "speaker": speaker,
+            "start_ms": 0, "end_ms": 0, "duration_ms": 0,
+            "text": text, "word_count": len(text.split()),
+            "hesitations": [], "max_hesitation_ms": 0,
+            "category": sentence["category"],
+            "expected_complete": sentence["expected_complete"],
+            "voice_id": voice_id,
+        }
+
+        if wav_path.exists() and not force:
+            # SKIP — re-measure for the index
+            print(f"  [{turn_num:03d}] S{speaker} {sentence['category']:12s} SKIP")
+            dur = _wav_duration_ms(wav_path)
+            entry["duration_ms"] = dur; entry["end_ms"] = dur
+            b = _analyze_speech_boundaries(wav_path, min_gap_ms=BENCHMARK1_MIN_GAP_MS)
+            entry["speech_start_ms"] = b["speech_start_ms"]
+            entry["speech_end_ms"] = b["speech_end_ms"]
+            entry["rms_peak"] = b["rms_peak"]
+            if b["silence_gaps"]:
+                g = max(b["silence_gaps"], key=lambda x: x["duration_ms"])
+                entry["hesitations"] = [{"at_ms": g["start_ms"], "duration_ms": g["duration_ms"]}]
+                entry["max_hesitation_ms"] = g["duration_ms"]
+            turns_data.append(entry)
+            continue
+
+        print(f"  [{turn_num:03d}] S{speaker} hesitation  rolling (target {min_ok}-{max_ok}ms)...")
+        best_dist = None
+        best_tmp = None
+        best_gap = None
+        for attempt in range(1, BENCHMARK2_MAX_ATTEMPTS + 1):
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tmp_mp3 = Path(tmp.name)
+            api_resp = _synthesize_with_timestamps(text, voice_id, api_key, tmp_mp3)
+            if api_resp is None:
+                tmp_mp3.unlink(missing_ok=True)
+                print(f"         attempt {attempt}: API FAIL")
+                continue
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+                cand_path = Path(tmp_wav.name)
+            ok = _mp3_to_wav(tmp_mp3, cand_path)
+            tmp_mp3.unlink(missing_ok=True)
+            if not ok:
+                cand_path.unlink(missing_ok=True)
+                continue
+
+            b = _analyze_speech_boundaries(cand_path, min_gap_ms=BENCHMARK1_MIN_GAP_MS)
+            gaps = b["silence_gaps"]
+            if not gaps:
+                print(f"         attempt {attempt}: no gap detected")
+                cand_path.unlink(missing_ok=True)
+                time.sleep(RATE_LIMIT_SLEEP)
+                continue
+            g = max(gaps, key=lambda x: x["duration_ms"])
+            gms = g["duration_ms"]
+            in_band = min_ok <= gms <= max_ok
+            tag = "✓" if in_band else ("LOW" if gms < min_ok else "HIGH")
+            print(f"         attempt {attempt}: gap = {gms}ms  {tag}")
+            if in_band:
+                dist = abs(gms - target_mid)
+                if best_dist is None or dist < best_dist:
+                    if best_tmp is not None:
+                        best_tmp.unlink(missing_ok=True)
+                    best_dist = dist; best_tmp = cand_path; best_gap = g
+                    # Stop early on a very close shot
+                    if dist <= 200:
+                        break
+                else:
+                    cand_path.unlink(missing_ok=True)
+            else:
+                cand_path.unlink(missing_ok=True)
+            time.sleep(RATE_LIMIT_SLEEP)
+
+        if best_tmp is None:
+            print(f"         GAVE UP — no in-band render after {BENCHMARK2_MAX_ATTEMPTS} attempts")
+            turns_data.append(entry)
+            continue
+
+        # Promote the best candidate
+        shutil.copy2(best_tmp, wav_path)
+        best_tmp.unlink(missing_ok=True)
+        dur = _wav_duration_ms(wav_path)
+        entry["duration_ms"] = dur; entry["end_ms"] = dur
+        bb = _analyze_speech_boundaries(wav_path, min_gap_ms=BENCHMARK1_MIN_GAP_MS)
+        entry["speech_start_ms"] = bb["speech_start_ms"]
+        entry["speech_end_ms"] = bb["speech_end_ms"]
+        entry["rms_peak"] = bb["rms_peak"]
+        entry["hesitations"] = [{"at_ms": best_gap["start_ms"], "duration_ms": best_gap["duration_ms"]}]
+        entry["max_hesitation_ms"] = best_gap["duration_ms"]
+        print(f"         picked: gap = {best_gap['duration_ms']}ms at {best_gap['start_ms']}ms")
+        turns_data.append(entry)
+
+    # Write index
+    index = {
+        "audio_file": "elevenlabs_tts_benchmark2_original",
+        "provider": "elevenlabs",
+        "model": MODEL_ID,
+        "total_turns": len(turns_data),
+        "voices": {"4": VOICES[4]},
+        "_note": (
+            "Benchmark 2 Original. 8 hesitation turns sharing the same texts "
+            "as Benchmark 1 but all rendered in voice 4 (BZgkqPqms7Kj9ulSkVzn). "
+            "Target gap band 1000-2000 ms via re-roll loop. Original-only; "
+            "no Zeroed pair."
+        ),
+        "turns": turns_data,
+    }
+    idx_path = BENCHMARK2_ORIG_DIR / "turns_index.json"
+    with open(idx_path, "w") as f:
+        json.dump(index, f, indent=2)
+    print(f"\nwrote {idx_path} ({len(turns_data)} turns)")
+    sils = sorted(t["hesitations"][0]["duration_ms"] for t in turns_data if t["hesitations"])
+    print(f"gap distribution: {sils}")
+    return index
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate TTS turn-accuracy test audio via ElevenLabs",
@@ -1635,6 +1817,11 @@ def main():
              "WAVs (useful when they were copied verbatim from a pre-silenced "
              "source and re-zeroing would round measured durations to the target)",
     )
+    parser.add_argument(
+        "--benchmark2", action="store_true",
+        help="Generate the Benchmark 2 Original corpus (8 hesitation turns in "
+             "voice 4, 1000-2000 ms target gap band, re-rolled per turn)",
+    )
     args = parser.parse_args()
 
     api_key = _load_tts_key()
@@ -1643,7 +1830,9 @@ def main():
         print("Set TTS_KEY=your_elevenlabs_api_key in .env", file=sys.stderr)
         sys.exit(1)
 
-    if args.benchmark1:
+    if args.benchmark2:
+        generate_benchmark2(api_key=api_key, force=args.force)
+    elif args.benchmark1:
         generate_benchmark1(
             api_key=api_key,
             force=args.force,

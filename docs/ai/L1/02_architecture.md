@@ -28,9 +28,9 @@ Server host (any OS)                     Operator's Mac (Chromium)
 1. Browser fetches `/api/wav/{source}/{speaker}/{turn}` for the next turn's WAV.
 2. `runBrowserTurn()` opens a 16 kHz `AudioContext`, calls `getUserMedia` on the chosen Input device, wires a `ScriptProcessor` (512 samples = 32 ms VAD frame) through a gain-0 sink so nothing leaks to the speakers.
 3. Two `HTMLMediaElement`s play the WAV — one to `devices.output` via `setSinkId` (the BlackHole 2ch loopback into the agent tab's mic), one optional monitor.
-4. `BrowserVad` (mirror of Python `VadEngine`: RMS ≥ 0.01, 300 ms hangover) detects `speech_start` / `speech_end` events.
-5. Poll loop computes TTFA the instant the first `speech_start` fires; emits a `phase` event so the row repaints immediately, then waits for the post-response silence timeout before resolving.
-6. Result POSTs to `/api/results/submit`; `TurnManager.ingest_browser_result()` stores it and broadcasts the same `turn_done` event server-mode would (with `source: "browser"`).
+4. `BrowserVad` (same state machine as Python `VadEngine`, browser threshold RMS ≥ 0.003, 300 ms hangover) detects `speech_start` / `speech_end` events.
+5. Poll loop computes TTFA the instant the first `speech_start` fires; emits a `phase` event so the row repaints immediately, then waits for the post-response silence timeout before resolving. A second amplitude-based measurement `TTFA2` runs in parallel: `decodeWavTiming()` decodes the prompt WAV via an `OfflineAudioContext` to find the last-active-RMS sample (`last_output_speech_ms`), and a `playing`-event timestamp (with a 250 ms `play()`-call fallback) anchors it to wall-clock. `ttfa2_ms = firstInputSpeechWall - (playStartWall + last_output_speech_ms)`. Phase A: TTFA stays canonical, TTFA2 is logged + shown as a parallel column for diff comparison; canonical flip happens in a later commit only after enough runs confirm the diff is a stable systematic offset.
+6. Result POSTs to `/api/results/submit`; `TurnManager.ingest_browser_result()` stores it and broadcasts the same `turn_done` event server-mode would (with `source: "browser"`). Payload now carries TTFA2 + 11 diagnostic fields alongside the legacy TTFA.
 
 `AbortSignal` is plumbed through Stop / Reset / new-Run-All so an in-flight turn tears down playback + capture cleanly instead of writing into the next run's row.
 

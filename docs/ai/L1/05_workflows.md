@@ -70,7 +70,9 @@ Output (`--benchmark1` produces **two paired corpora** from the same generated a
 - `out/Benchmark_1_Zeroed/turns_index.json` + `out/Benchmark_1_Zeroed/turns/speaker{0-4}/turn_NNN.wav` — same WAVs with the test-gap window written to bit-perfect zero (3 ms linear edge fade).
 - legacy: `out/TTS_Turns/turns_index.json` + `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav`.
 
-Both Benchmark 1 sources are exposed in the UI Source dropdown (`benchmark_1_zeroed`, `benchmark_1_original`). Zeroed is the default; switch to Original to test agents whose EOT relies on prosodic / energy cues rather than a true zero-amplitude floor.
+Both Benchmark 1 sources are exposed in the UI Source dropdown (`benchmark_1_original`, `benchmark_1_zeroed`). **Original is the default** — it's what any deployed agent would actually hear. Switch to Zeroed for amplitude-driven EOT detectors that need a true zero-amplitude floor.
+
+There is also a third source `benchmark_2_original` — 8 hesitation turns sharing the same texts as Benchmark 1 but all rendered through voice 4 (BZgkqPqms7Kj9ulSkVzn) with a wider 1000-2000 ms target band. Useful for testing agents against longer mid-utterance pauses in a single-voice baseline. Generated via `python -m src.harness.generate_tts --benchmark2`.
 
 ### Turn type semantics (rulebook)
 
@@ -102,7 +104,7 @@ Older versions of this corpus also had a `hesitation2` category for prosody-only
 
 The UI "Gap ms" column shows `hesitations[0].duration_ms` (the detector window), identical between the two sources for any given turn.
 
-Category mix: normal (6), pause (4), hesitation (8), ambiguous (3). Audio: 48 kHz mono 16-bit PCM.
+Category mix: normal (6), pause (4), hesitation (8), ambiguous (3). Six speakers (voices 0-5; voice 5 is the LES profile voice added for turn 3). Audio: 48 kHz mono 16-bit PCM.
 
 ### Tuning the test-gap distribution
 

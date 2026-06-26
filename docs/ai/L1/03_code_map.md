@@ -36,8 +36,12 @@
 |------|---------|
 | `out/turns_index.json` | Turn timing and metadata |
 | `out/turns/speaker{0,1}/turn_NNN.wav` | Per-turn audio clips |
-| `out/Benchmark_1/turns_index.json` | Default 20-turn TTS corpus (bit-perfect zero gaps) |
-| `out/Benchmark_1/turns/speaker{0-4}/turn_NNN.wav` | Benchmark 1 turn audio |
+| `out/Benchmark_1_Original/turns_index.json` | Default source — raw ElevenLabs corpus, 21 turns |
+| `out/Benchmark_1_Original/turns/speaker{0-5}/turn_NNN.wav` | Benchmark 1 Original turn audio |
+| `out/Benchmark_1_Zeroed/turns_index.json` | Paired source — same audio with test-gap window zeroed |
+| `out/Benchmark_1_Zeroed/turns/speaker{0-5}/turn_NNN.wav` | Benchmark 1 Zeroed turn audio |
+| `out/Benchmark_2_Original/turns_index.json` | Voice-4-only hesitation corpus, 8 turns, 1000-2000 ms gaps |
+| `out/Benchmark_2_Original/turns/speaker4/turn_NNN.wav` | Benchmark 2 Original turn audio |
 | `out/TTS_Turns/turns_index.json` | Legacy TTS turn metadata with categories |
 | `out/TTS_Turns/turns/speaker{0-4}/turn_NNN.wav` | Legacy synthetic TTS turn audio |
 | `diarize_output/` | Diarization comparison results |

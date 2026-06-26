@@ -108,6 +108,9 @@ function handleMessage(msg) {
         if (!msg.barge_in && msg.ttfa_ms != null) {
           setTurnTtfa(msg.turn, msg.ttfa_ms);
         }
+        if (!msg.barge_in && msg.ttfa2_ms != null) {
+          setTurnTtfa2(msg.turn, msg.ttfa2_ms);
+        }
       }
       if (msg.summary) {
         renderSummary(msg.summary);
@@ -339,7 +342,7 @@ function renderDevices() {
     if (slot.key === "input") {
       // Live RMS meter so the operator can see immediately whether
       // anything is reaching the chosen input. Threshold marker = the
-      // VAD trigger (0.01 RMS).
+      // browser VAD trigger.
       html += `
         <div class="meter-wrap" aria-hidden="true">
           <div class="meter-bar"><div class="meter-fill" id="meter-fill"></div>
@@ -399,11 +402,12 @@ function paintMeter(level) {
     return;
   }
   const pct = Math.min(100, (level.rms / METER_MAX_RMS) * 100);
+  const threshold = window.benchHarness?.VAD_RMS_THRESHOLD ?? 0.003;
   fill.style.width = `${pct}%`;
-  fill.classList.toggle("over-threshold", level.rms >= 0.01);
+  fill.classList.toggle("over-threshold", level.rms >= threshold);
   readout.textContent = `RMS ${level.rms.toFixed(4)}`;
   if (stateEl) {
-    if (level.rms >= 0.01) stateEl.textContent = "(speech)";
+    if (level.rms >= threshold) stateEl.textContent = "(speech)";
     else if (level.rms >= 0.001) stateEl.textContent = "(quiet)";
     else stateEl.textContent = "(silent)";
   }
@@ -485,6 +489,7 @@ function renderTurnTable() {
         <td>${(turn.duration_ms / 1000).toFixed(1)}s</td>
         <td>${silenceText}</td>
         <td class="ttfa-cell" id="ttfa-${turn.turn}">—</td>
+        <td class="ttfa-cell" id="ttfa2-${turn.turn}">—</td>
         <td id="status-${turn.turn}"><span class="status-badge status-pending">pending</span></td>
         <td><button class="btn-play-single" title="Plays turn 0 (opener / instructions) first to prime the agent, then resumes from this turn through the end" onclick="playSingle(${turn.turn})">Start</button></td>
       </tr>
@@ -496,14 +501,15 @@ function renderTurnTable() {
   // used to sit so screen recordings end on the headline numbers.
   html += `
     <tr id="turn-row-summary" class="summary-row">
-      <td colspan="9" class="summary-strip">
+      <td colspan="10" class="summary-strip">
         <span>Turns <b id="stat-total">—</b></span>
         <span>Completed <b id="stat-completed">—</b></span>
         <span>Barge-ins <b id="stat-bargein">—</b></span>
         <span>No Response <b id="stat-noresp">—</b></span>
-        <span>Avg <b id="stat-avg">—</b></span>
-        <span>Median <b id="stat-median">—</b></span>
-        <span>P95 <b id="stat-p95">—</b></span>
+        <span>Avg TTFA <b id="stat-avg">—</b></span>
+        <span>Avg TTFA2 <b id="stat-avg2">—</b></span>
+        <span>P95 TTFA <b id="stat-p95">—</b></span>
+        <span>P95 TTFA2 <b id="stat-p952">—</b></span>
       </td>
     </tr>
   `;
@@ -525,19 +531,28 @@ function setTurnStatus(turnIdx, status) {
 
 function setTurnTtfa(turnIdx, ttfa) {
   const el = document.getElementById(`ttfa-${turnIdx}`);
+  paintTtfaCell(el, ttfa, false);
+}
+
+function setTurnTtfa2(turnIdx, ttfa) {
+  const el = document.getElementById(`ttfa2-${turnIdx}`);
+  paintTtfaCell(el, ttfa, true);
+}
+
+function paintTtfaCell(el, ttfa, allowNegative) {
   if (!el) return;
 
-  // Defensive: a negative TTFA only happens on barge-in. We've decided
-  // those rows leave the cell blank and don't enter the avg. Even if a
-  // stale WS event sneaks through, refuse the paint here.
-  if (ttfa == null || ttfa < 0) {
+  // Canonical TTFA keeps negative/barge rows blank. TTFA2 may show a
+  // negative value when the new timing disagrees, so the discrepancy is
+  // visible without changing the run status.
+  if (ttfa == null || (!allowNegative && ttfa < 0)) {
     el.textContent = "—";
     return;
   }
 
   const ms = Math.round(ttfa);
   let cls;
-  if (ms > 1500) {
+  if (ms < 0 || ms > 1500) {
     cls = "ttfa-red";
   } else if (ms > 500) {
     cls = "ttfa-yellow";
@@ -571,25 +586,44 @@ function resetTableStatuses() {
     setTurnStatus(turn.turn, "pending");
     const ttfaEl = document.getElementById(`ttfa-${turn.turn}`);
     if (ttfaEl) ttfaEl.textContent = "—";
+    const ttfa2El = document.getElementById(`ttfa2-${turn.turn}`);
+    if (ttfa2El) ttfa2El.textContent = "—";
   }
 }
 
+function summarizeMetric(field) {
+  const values = Object.values(state.results)
+    .filter(r => !r.barge_in && r[field] != null && r[field] >= 0)
+    .map(r => r[field])
+    .sort((a, b) => a - b);
+  if (values.length === 0) return { avg: null, p95: null, count: 0 };
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  const idx = (values.length - 1) * 0.95;
+  const low = Math.floor(idx);
+  const high = Math.min(low + 1, values.length - 1);
+  const frac = idx - low;
+  const p95 = values[low] + frac * (values[high] - values[low]);
+  return { avg, p95, count: values.length };
+}
+
+function setSummaryMetric(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value != null ? `${Math.round(value)}ms` : "—";
+}
+
 function updateSummaryRow() {
-  // Client-side fallback so the Avg ticks live between server summary
+  // Client-side fallback so metrics tick live between server summary
   // events. Server-side renderSummary() supersedes this when its
-  // summary message arrives. Bag of TTFAs excludes barge-ins and
-  // not-yet-measured turns.
-  const el = document.getElementById("stat-avg");
-  if (!el) return;
-  const ttfas = Object.values(state.results)
-    .filter(r => !r.barge_in && r.ttfa_ms != null && r.ttfa_ms >= 0)
-    .map(r => r.ttfa_ms);
-  if (ttfas.length === 0) {
-    el.textContent = "—";
-    return;
+  // summary message arrives for TTFA. TTFA2 is browser-only, so it is
+  // summarized here from the submitted result objects.
+  const ttfa = summarizeMetric("ttfa_ms");
+  const ttfa2 = summarizeMetric("ttfa2_ms");
+  if (ttfa.count > 0) {
+    setSummaryMetric("stat-avg", ttfa.avg);
+    setSummaryMetric("stat-p95", ttfa.p95);
   }
-  const avg = Math.round(ttfas.reduce((a, b) => a + b, 0) / ttfas.length);
-  el.textContent = `${avg}ms`;
+  setSummaryMetric("stat-avg2", ttfa2.avg);
+  setSummaryMetric("stat-p952", ttfa2.p95);
 }
 
 function renderCurrentTurn(msg) {}
@@ -603,10 +637,11 @@ function renderSummary(data) {
   document.getElementById("stat-noresp").textContent = data.no_response_count ?? "—";
   document.getElementById("stat-avg").textContent =
     data.ttfa_avg_ms != null ? `${Math.round(data.ttfa_avg_ms)}ms` : "—";
-  document.getElementById("stat-median").textContent =
-    data.ttfa_median_ms != null ? `${Math.round(data.ttfa_median_ms)}ms` : "—";
   document.getElementById("stat-p95").textContent =
     data.ttfa_p95_ms != null ? `${Math.round(data.ttfa_p95_ms)}ms` : "—";
+  document.getElementById("stat-avg2").textContent = "—";
+  document.getElementById("stat-p952").textContent = "—";
+  updateSummaryRow();
 }
 
 function updateControls() {
@@ -1008,7 +1043,15 @@ async function runBrowserTurnFlow(turn, signal, runId, cap) {
   if (!result.barge_in && result.ttfa_ms != null) {
     setTurnTtfa(turn.turn, result.ttfa_ms);
   }
-  benchLog(`turn ${turn.turn} done — status=${result.status} ttfa=${result.ttfa_ms?.toFixed?.(0) ?? "—"} barge=${result.barge_in}`);
+  if (!result.barge_in && result.ttfa2_ms != null) {
+    setTurnTtfa2(turn.turn, result.ttfa2_ms);
+  }
+  benchLog(
+    `turn ${turn.turn} done — status=${result.status} ` +
+    `ttfa=${result.ttfa_ms?.toFixed?.(0) ?? "—"} ` +
+    `ttfa2=${result.ttfa2_ms?.toFixed?.(0) ?? "—"} ` +
+    `barge=${result.barge_in}`,
+  );
   // POST to server so it goes into the canonical results store.
   await window.benchHarness.submitResult(
     { ...result, speaker: turn.speaker },

@@ -32,6 +32,16 @@ SOURCES = {
         "index": OUT_DIR / "Benchmark_1_Original" / "turns_index.json",
         "turns_dir": OUT_DIR / "Benchmark_1_Original" / "turns",
     },
+    "benchmark_2_original": {
+        # Voice-4-only hesitation corpus. Same 8 hesitation texts as
+        # Benchmark 1 but rendered through voice 4 (the one that
+        # honors [hesitation] tags reliably). Target gap band
+        # 1000-2000 ms via re-roll loop in generate_benchmark2.
+        # Original-only — no paired Zeroed source.
+        "label": "Benchmark 2 Original",
+        "index": OUT_DIR / "Benchmark_2_Original" / "turns_index.json",
+        "turns_dir": OUT_DIR / "Benchmark_2_Original" / "turns",
+    },
     "benchmark_1_zeroed": {
         # Paired with benchmark_1_original (same synthesized audio, same
         # detector-defined test-gap window). In this source the test-gap
@@ -95,6 +105,20 @@ class TurnResult:
     text: str
     duration_ms: int
     ttfa_ms: float | None = None
+    ttfa2_ms: float | None = None
+    decoded_duration_ms: float | None = None
+    first_output_speech_ms: float | None = None
+    last_output_speech_ms: float | None = None
+    output_tail_ms: float | None = None
+    prompt_end_ms: float | None = None
+    prompt_tail_ms: float | None = None
+    media_ended_minus_playing_ms: float | None = None
+    first_input_from_play_ms: float | None = None
+    playback_start_source: str | None = None
+    prompt_end_wall_method: str | None = None
+    ttfa2_hard_barge_in: bool = False
+    ttfa2_gap_barge_in: bool = False
+    ttfa2_error: str | None = None
     barge_in: bool = False
     barge_in_at_ms: float | None = None
     response_duration_ms: float | None = None
@@ -443,6 +467,20 @@ class TurnManager:
             text=turn["text"],
             duration_ms=turn["duration_ms"],
             ttfa_ms=payload.get("ttfa_ms"),
+            ttfa2_ms=payload.get("ttfa2_ms"),
+            decoded_duration_ms=payload.get("decoded_duration_ms"),
+            first_output_speech_ms=payload.get("first_output_speech_ms"),
+            last_output_speech_ms=payload.get("last_output_speech_ms"),
+            output_tail_ms=payload.get("output_tail_ms"),
+            prompt_end_ms=payload.get("prompt_end_ms"),
+            prompt_tail_ms=payload.get("prompt_tail_ms"),
+            media_ended_minus_playing_ms=payload.get("media_ended_minus_playing_ms"),
+            first_input_from_play_ms=payload.get("first_input_from_play_ms"),
+            playback_start_source=payload.get("playback_start_source"),
+            prompt_end_wall_method=payload.get("prompt_end_wall_method"),
+            ttfa2_hard_barge_in=bool(payload.get("ttfa2_hard_barge_in", False)),
+            ttfa2_gap_barge_in=bool(payload.get("ttfa2_gap_barge_in", False)),
+            ttfa2_error=payload.get("ttfa2_error"),
             barge_in=bool(payload.get("barge_in", False)),
             barge_in_at_ms=payload.get("barge_in_at_ms"),
             response_duration_ms=payload.get("response_duration_ms"),
@@ -454,6 +492,20 @@ class TurnManager:
         self._emit("turn_done", {
             "turn": result.turn,
             "ttfa_ms": round(result.ttfa_ms, 1) if result.ttfa_ms is not None else None,
+            "ttfa2_ms": round(result.ttfa2_ms, 1) if result.ttfa2_ms is not None else None,
+            "decoded_duration_ms": round(result.decoded_duration_ms, 1) if result.decoded_duration_ms is not None else None,
+            "first_output_speech_ms": round(result.first_output_speech_ms, 1) if result.first_output_speech_ms is not None else None,
+            "last_output_speech_ms": round(result.last_output_speech_ms, 1) if result.last_output_speech_ms is not None else None,
+            "output_tail_ms": round(result.output_tail_ms, 1) if result.output_tail_ms is not None else None,
+            "prompt_end_ms": round(result.prompt_end_ms, 1) if result.prompt_end_ms is not None else None,
+            "prompt_tail_ms": round(result.prompt_tail_ms, 1) if result.prompt_tail_ms is not None else None,
+            "media_ended_minus_playing_ms": round(result.media_ended_minus_playing_ms, 1) if result.media_ended_minus_playing_ms is not None else None,
+            "first_input_from_play_ms": round(result.first_input_from_play_ms, 1) if result.first_input_from_play_ms is not None else None,
+            "playback_start_source": result.playback_start_source,
+            "prompt_end_wall_method": result.prompt_end_wall_method,
+            "ttfa2_hard_barge_in": result.ttfa2_hard_barge_in,
+            "ttfa2_gap_barge_in": result.ttfa2_gap_barge_in,
+            "ttfa2_error": result.ttfa2_error,
             "barge_in": result.barge_in,
             "barge_in_at_ms": round(result.barge_in_at_ms, 1) if result.barge_in_at_ms is not None else None,
             "response_duration_ms": round(result.response_duration_ms, 1) if result.response_duration_ms is not None else None,
@@ -526,6 +578,7 @@ class TurnManager:
                 "text": r.text,
                 "duration_ms": r.duration_ms,
                 "ttfa_ms": round(r.ttfa_ms, 1) if r.ttfa_ms is not None else None,
+                "ttfa2_ms": round(r.ttfa2_ms, 1) if r.ttfa2_ms is not None else None,
                 "barge_in": r.barge_in,
                 "status": r.status,
             }

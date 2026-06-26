@@ -597,11 +597,11 @@ header #btn-setup { margin-left: auto; }
   background: linear-gradient(90deg, #2e7d32, #5cc26b);
 }
 .meter-threshold {
-  /* VAD threshold at RMS 0.01, scaled against METER_MAX_RMS=0.2 → 5% */
+  /* Browser VAD threshold at RMS 0.003, scaled against METER_MAX_RMS=0.2 -> 1.5% */
   position: absolute;
   top: -1px;
   bottom: -1px;
-  left: 5%;
+  left: 1.5%;
   width: 1px;
   background: #f0c060;
 }

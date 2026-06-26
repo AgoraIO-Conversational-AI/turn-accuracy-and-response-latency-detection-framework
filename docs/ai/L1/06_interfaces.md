@@ -11,7 +11,7 @@
 | GET | `/api/results` | Get current run summary |
 | POST | `/api/devices/configure` | Update server-side device assignments |
 | GET | `/api/wav/{source}/{speaker}/{turn_id}` | Serve a single turn WAV (audio/wav). Used by the browser harness for in-browser playback; also handy for previewing without an audio engine. |
-| POST | `/api/results/submit` | Ingest a browser-measured turn result. Body: `{turn, ttfa_ms, barge_in, barge_in_at_ms, response_duration_ms, status, speaker}`. Server stores it in `TurnManager.run.results` so the existing summary stats + `turn_done` broadcast keep working. |
+| POST | `/api/results/submit` | Ingest a browser-measured turn result. Body: `{turn, ttfa_ms, barge_in, barge_in_at_ms, response_duration_ms, status, speaker, ttfa2_ms, decoded_duration_ms, first_output_speech_ms, last_output_speech_ms, output_tail_ms, media_ended_minus_playing_ms, first_input_from_play_ms, playback_start_source, prompt_end_wall_method, ttfa2_hard_barge_in, ttfa2_gap_barge_in, ttfa2_error}`. `ttfa_ms` is the legacy canonical metric; the `ttfa2_*` family is the parallel amplitude-based measurement (Phase A — runs alongside legacy for diff comparison). Server stores it in `TurnManager.run.results` so the existing summary stats + `turn_done` broadcast keep working. |
 
 ## WebSocket (`/ws`)
 
@@ -107,16 +107,16 @@ startMeter(inputDeviceId, onLevel)    // continuous RMS meter for an input devic
 submitResult(result, baseUrl)         // POST /api/results/submit
 ```
 
-### VAD constants (mirror Python `VadEngine`)
+### Browser VAD constants
 
 ```
 VAD_RATE = 16000
 VAD_FRAME = 512                       // 32 ms @ 16 kHz
-VAD_RMS_THRESHOLD = 0.01
+VAD_RMS_THRESHOLD = 0.003
 VAD_MIN_SILENCE_MS = 300
 RESPONSE_SILENCE_TIMEOUT_S = 1.5
 BARGE_IN_SILENCE_TIMEOUT_S = 3.0
-MAX_WAIT_FOR_RESPONSE_S = 10.0
+MAX_WAIT_FOR_RESPONSE_S = 8.0
 ```
 
 The browser AudioContext is requested at 16 kHz so the ScriptProcessor frames are exactly one VAD frame; Chromium honors this hint, Safari/Firefox silently override — that's why the setup docs require Chromium.

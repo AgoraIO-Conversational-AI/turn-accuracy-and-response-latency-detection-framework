@@ -8,7 +8,7 @@ If you use Multi-Output Device for speaker monitoring (instead of MacBook Pro Sp
 
 ## TTFA Calculation and Buffer Overhead
 
-TTFA is measured from the turn's expected `duration_ms` (from the index), not from the wall-clock time that `play_turn()` returns. `play_turn()` returns ~200-400ms late due to OS audio buffer drain, which would inflate TTFA measurements.
+Legacy TTFA is measured from the turn's expected `duration_ms` (from the index), not from the wall-clock time that `play_turn()` returns. `play_turn()` returns ~200-400ms late due to OS audio buffer drain, which would inflate TTFA measurements.
 
 There's still a ~50-80ms positive bias from:
 - Audio buffer latency (1024 frames @ 48kHz = 21ms)
@@ -16,6 +16,8 @@ There's still a ~50-80ms positive bias from:
 - Queue/event loop polling (10-20ms)
 
 This is consistent — useful for relative comparisons between turns/agents.
+
+**TTFA2 (parallel amplitude-based metric).** The browser harness now also computes `ttfa2_ms` by decoding the prompt WAV (via `OfflineAudioContext.decodeAudioData`) to find the last RMS-active sample, then anchoring to wall-clock via the `<audio>` element's `playing` event (250 ms fallback to `play()` call time). Subtracts trailing silence from the prompt and removes the WAV-time-vs-wall-clock anchoring drift the legacy method carries. Currently runs alongside legacy TTFA (Phase A) — see `claude_plan.md` and `codex_plan.md` for the rollout plan. The browser logs `[bench drift] turn N` when decoded `last_output_speech_ms` differs from the index's `speech_end_ms` by > 30 ms; that warns of corpus/decoder mismatch and shouldn't fire in normal operation.
 
 ## Playback Hang Protection
 
