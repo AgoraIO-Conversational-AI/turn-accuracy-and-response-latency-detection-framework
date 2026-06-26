@@ -10,7 +10,9 @@ Use decoded WAV analysis for prompt timing, not a Web Audio tap on the primary p
 
 For each turn:
 
-1. Fetch/decode the WAV in the browser, or reuse an `ArrayBuffer` already fetched for cache warming.
+1. Fetch/decode the WAV in the browser.
+   - First pass: fetch the WAV again inside the TTFA2 helper and rely on the browser HTTP cache. `prefetchAllWavs()` currently warms the cache but discards the bytes, so there is no existing `ArrayBuffer` to reuse.
+   - Future optimization: refactor prefetching to retain WAV bytes in a `Map<source:speaker:turn, ArrayBuffer>`.
 2. Compute prompt audio metadata from decoded PCM:
    - `decoded_duration_ms`
    - `first_output_speech_ms`
@@ -48,7 +50,17 @@ Display rules:
 - Show `TTFA2` in ms for non-barge-in responses.
 - Leave blank/dash for current canonical barge-ins, matching current TTFA behavior.
 - Keep the existing `TTFA` column exactly as-is.
-- Do not change summary stats yet.
+- Update the bottom summary strip for side-by-side comparison:
+  - Keep: `Turns`, `Completed`, `Barge-ins`, `No Response`
+  - Replace `Avg`, `Median`, `P95` with:
+    - `Avg TTFA`
+    - `Avg TTFA2`
+    - `P95 TTFA`
+    - `P95 TTFA2`
+  - Drop `Median` for now.
+  - Existing server summary fields still drive `Avg TTFA` and `P95 TTFA`.
+  - Compute `Avg TTFA2` and `P95 TTFA2` client-side from `state.results` for now.
+  - TTFA2 aggregate inclusion rule: exclude canonical `barge_in`, exclude `no_response`, require `ttfa2_ms != null && ttfa2_ms >= 0`.
 
 Optional later: add a compact `Delta` column, but do not add it in the first pass unless the table still fits cleanly.
 
@@ -79,17 +91,25 @@ console.info("[bench timing]", {
 
 Avoid per-frame analyser logs. Only log aggregate timing per turn.
 
+`first_input_from_play_ms` is defined as:
+
+```js
+first_input_from_play_ms = firstInputSpeechWall - playbackStartWall
+```
+
 ## Implementation Steps
 
 1. Add a decoded WAV analysis helper in `browser_harness.js`.
-   - Decode with `AudioContext.decodeAudioData`.
+   - Fetch the WAV URL directly in the helper. It should usually be an HTTP-cache hit because `prefetchAllWavs()` already warms the cache.
+   - Decode with a dedicated one-shot decode context, not the 16 kHz input-capture context. Prefer `OfflineAudioContext` or an isolated `AudioContext` so decode does not interfere with the live input `ScriptProcessor`.
    - Downmix to mono for analysis.
    - Use RMS windows, initially `20 ms` and threshold `0.005` to match corpus gap detection.
    - Return `first_output_speech_ms`, `last_output_speech_ms`, and `decoded_duration_ms`.
+   - Decode failure must not fail the turn. If fetch/decode/analyse fails, set `ttfa2_ms = null`, `playback_start_source = "decode_failed"`, include a `ttfa2_error` diagnostic string, render `—` in the `TTFA2` cell, and continue the run.
 
 2. Capture a better playback start time.
    - Add a `playing` event timestamp to `startPlayback`.
-   - If `playing` does not fire promptly, fall back to current `playController.startWall`.
+   - If `playing` does not fire within `250 ms` after `primary.play()` is called, fall back to current `playController.startWall`.
    - Store `playback_start_source: "playing" | "play_call_fallback"`.
 
 3. Compute TTFA2 in `runBrowserTurn`.
@@ -99,6 +119,8 @@ Avoid per-frame analyser logs. Only log aggregate timing per turn.
 4. Add a `TTFA2` table cell in `app.js`.
    - Render it from local browser result.
    - Include it in server-submitted payload for future analysis.
+   - Update the summary footer labels/fields to show `Avg TTFA`, `Avg TTFA2`, `P95 TTFA`, `P95 TTFA2`; remove `Median`.
+   - Compute TTFA2 aggregate values locally until server-side summary explicitly supports TTFA2.
 
 5. Refactor only if needed.
    - Do not combine `runAll` / `playSingle` in the same change unless the TTFA2 patch becomes awkward.
@@ -115,6 +137,7 @@ Run a full Benchmark 1 pass and inspect:
 
 - `TTFA2` appears for completed non-barge-in turns.
 - Existing `TTFA` values and summary stats are unchanged.
+- Bottom row shows old/new aggregates: `Avg TTFA`, `Avg TTFA2`, `P95 TTFA`, `P95 TTFA2`, with no `Median`.
 - Console logs include one `[bench timing]` object per completed turn.
 - `delta_ms` is generally stable enough to reason about.
 - No audio routing regression: primary playback still goes to selected `Output 1`.
