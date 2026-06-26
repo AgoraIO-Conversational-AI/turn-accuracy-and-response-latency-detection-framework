@@ -356,7 +356,7 @@ SENTENCES_BENCHMARK1 = [
     {
         "voice": 0,
         "category": "pause",
-        "text": "Yeah, I got a bill for [pause] six hundred and eighty dollars and I can't pay it all today.",
+        "text": "Yeah, I got a bill for [hesitation] [pause] six hundred and eighty dollars and I can't pay it all today.",
         "expected_complete": False,
     },
     # 2 — normal (name + DoB recited cleanly; no engineered gap).
