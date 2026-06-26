@@ -8,7 +8,8 @@
     "1": "maYJAY8nOIBZeB0UYfc5",
     "2": "QoC8og5VjCQoTz0caaaO",
     "3": "VUGQSU6BSEjkbudnJbOj",
-    "4": "1AKkSX7KMPHIWuz76m0n"
+    "4": "1AKkSX7KMPHIWuz76m0n",
+    "5": "Nmd04QDxMhcTd5ocBsuE"
   },
   "_note": "Same WAVs as Benchmark 1 Original, with the hesitations.at_ms / duration_ms window written to bit-perfect zero (3 ms linear edge fade). The canonical paired test gap is hesitations.duration_ms (the detector window); zero_run_ms is the actual contiguous int16-zero run length and is diagnostic only.",
   "_paired_with": "Benchmark_1_Original",
@@ -66,28 +67,28 @@
       "category": "normal",
       "expected_complete": true,
       "voice_id": "maYJAY8nOIBZeB0UYfc5",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 3.28,
       "speech_start_ms": 40,
       "speech_end_ms": 3260,
       "rms_peak": 0.3505
     },
     {
       "turn": 3,
-      "speaker": 2,
+      "speaker": 5,
       "start_ms": 0,
-      "end_ms": 1040,
-      "duration_ms": 1040,
+      "end_ms": 1120,
+      "duration_ms": 1120,
       "text": "Payment plan.",
       "word_count": 2,
       "hesitations": [],
       "max_hesitation_ms": 0,
       "category": "normal",
       "expected_complete": true,
-      "voice_id": "QoC8og5VjCQoTz0caaaO",
-      "speech_start_ms": 160,
-      "speech_end_ms": 980,
-      "rms_peak": 0.1404
+      "voice_id": "Nmd04QDxMhcTd5ocBsuE",
+      "alignment_start_s": 0.0,
+      "alignment_end_s": 1.12,
+      "speech_start_ms": 60,
+      "speech_end_ms": 1040,
+      "rms_peak": 0.3459
     },
     {
       "turn": 4,
@@ -110,7 +111,7 @@
       "speech_start_ms": 0,
       "speech_end_ms": 2940,
       "rms_peak": 0.3727,
-      "zero_run_ms": 540
+      "zero_run_ms": 541
     },
     {
       "turn": 5,
@@ -316,7 +317,7 @@
       "speech_start_ms": 40,
       "speech_end_ms": 6460,
       "rms_peak": 0.418,
-      "zero_run_ms": 920
+      "zero_run_ms": 921
     },
     {
       "turn": 15,
@@ -339,7 +340,7 @@
       "speech_start_ms": 60,
       "speech_end_ms": 4600,
       "rms_peak": 0.2464,
-      "zero_run_ms": 860
+      "zero_run_ms": 861
     },
     {
       "turn": 16,

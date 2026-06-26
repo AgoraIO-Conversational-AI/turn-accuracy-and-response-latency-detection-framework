@@ -8,7 +8,8 @@
     "1": "maYJAY8nOIBZeB0UYfc5",
     "2": "QoC8og5VjCQoTz0caaaO",
     "3": "VUGQSU6BSEjkbudnJbOj",
-    "4": "1AKkSX7KMPHIWuz76m0n"
+    "4": "1AKkSX7KMPHIWuz76m0n",
+    "5": "Nmd04QDxMhcTd5ocBsuE"
   },
   "_note": "Raw ElevenLabs WAVs (post-transcode, pre-zero). Natural low-amplitude content sits inside the hesitations.at_ms / duration_ms window. Detector window is shared with Benchmark 1 Zeroed (paired test gap).",
   "_paired_with": "Benchmark_1_Zeroed",
@@ -65,28 +66,28 @@
       "category": "normal",
       "expected_complete": true,
       "voice_id": "maYJAY8nOIBZeB0UYfc5",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 3.28,
       "speech_start_ms": 40,
       "speech_end_ms": 3260,
       "rms_peak": 0.3505
     },
     {
       "turn": 3,
-      "speaker": 2,
+      "speaker": 5,
       "start_ms": 0,
-      "end_ms": 1040,
-      "duration_ms": 1040,
+      "end_ms": 1120,
+      "duration_ms": 1120,
       "text": "Payment plan.",
       "word_count": 2,
       "hesitations": [],
       "max_hesitation_ms": 0,
       "category": "normal",
       "expected_complete": true,
-      "voice_id": "QoC8og5VjCQoTz0caaaO",
-      "speech_start_ms": 160,
-      "speech_end_ms": 980,
-      "rms_peak": 0.1404
+      "voice_id": "Nmd04QDxMhcTd5ocBsuE",
+      "alignment_start_s": 0.0,
+      "alignment_end_s": 1.12,
+      "speech_start_ms": 60,
+      "speech_end_ms": 1040,
+      "rms_peak": 0.3459
     },
     {
       "turn": 4,

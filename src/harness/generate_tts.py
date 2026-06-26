@@ -48,6 +48,7 @@ VOICES = {
     2: "QoC8og5VjCQoTz0caaaO",
     3: "VUGQSU6BSEjkbudnJbOj",
     4: "1AKkSX7KMPHIWuz76m0n",
+    5: "Nmd04QDxMhcTd5ocBsuE",  # LES profile voice
 }
 
 # ── Sentence definitions ───────────────────────────────────────────────────
@@ -367,9 +368,9 @@ SENTENCES_BENCHMARK1 = [
         "text": "Michael Turner, born April fourteenth, nineteen eighty five.",
         "expected_complete": True,
     },
-    # 3 — normal (short complete answer)
+    # 3 — normal (short complete answer; LES voice — new speaker in the mix)
     {
-        "voice": 2,
+        "voice": 5,
         "category": "normal",
         "text": "Payment plan.",
         "expected_complete": True,
