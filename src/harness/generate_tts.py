@@ -805,6 +805,26 @@ def _zero_out_gap(
     }
 
 
+def _pad_trailing_silence(wav_path: Path, pad_ms: int = 200) -> int:
+    """Append pad_ms of int16-zero samples to the end of the WAV.
+
+    ElevenLabs sometimes ends clips mid-syllable with no decay tail.
+    Browser audio playback drain can then chop the last few ms of the
+    syllable, sounding clipped. Padding with trailing silence gives the
+    drain a clean landing zone. Mid-utterance detection (test-gap) is
+    unaffected since the padding is appended at the very end.
+
+    Returns the new on-disk duration in ms.
+    """
+    data, sr = sf.read(str(wav_path), dtype="float32")
+    if data.ndim > 1:
+        data = data[:, 0]
+    pad_samples = int(sr * pad_ms / 1000)
+    padded = np.concatenate([data, np.zeros(pad_samples, dtype="float32")])
+    sf.write(str(wav_path), padded, sr, subtype="PCM_16")
+    return int(round(len(padded) * 1000 / sr))
+
+
 def _zero_specified_gap(
     wav_path: Path, start_ms: int, end_ms: int, fade_ms: int = 3,
 ) -> dict | None:
@@ -1473,6 +1493,10 @@ def generate_benchmark1(
             if api_resp is not None:
                 ok = _mp3_to_wav(tmp_mp3, orig_wav)
                 if ok:
+                    # ElevenLabs often returns clips that end mid-syllable;
+                    # pad 200ms of zeros so browser playback drain has a
+                    # clean landing zone and doesn't clip the last syllable.
+                    _pad_trailing_silence(orig_wav, pad_ms=200)
                     align_info = _extract_alignment_info(api_resp)
                     if align_info:
                         for entry in (entry_orig, entry_zeroed):
