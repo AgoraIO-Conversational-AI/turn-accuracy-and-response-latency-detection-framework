@@ -102,11 +102,11 @@ Older versions of this corpus also had a `hesitation2` category for prosody-only
 
 The UI "Gap ms" column shows `hesitations[0].duration_ms` (the detector window), identical between the two sources for any given turn.
 
-Category mix: normal (5), pause (4), hesitation (9), ambiguous (3). Audio: 48 kHz mono 16-bit PCM.
+Category mix: normal (6), pause (4), hesitation (8), ambiguous (3). Audio: 48 kHz mono 16-bit PCM.
 
 ### Tuning the test-gap distribution
 
-The current distribution (after the most recent regen) is `540, 580, 840, 920, 1080, 1120, 1160, 1260, 1320, 1680, 2060, 2100, 2440 ms`. Several values fall outside the 700-1500 ms design band — ElevenLabs is non-deterministic and individual rolls can drift wide. To tighten an outlier turn:
+The current distribution (12 gap-bearing turns) is `540, 580, 840, 860, 920, 1080, 1120, 1160, 1260, 1320, 1400, 1460 ms`. All in the 500-1500 ms band. ElevenLabs is non-deterministic and individual rolls can drift wide; to tighten an outlier turn after a re-roll:
 
 1. Probe the candidate text first:
    ```bash

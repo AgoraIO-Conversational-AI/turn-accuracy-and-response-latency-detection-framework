@@ -26,8 +26,6 @@
       "category": "normal",
       "expected_complete": true,
       "voice_id": "QoC8og5VjCQoTz0caaaO",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 6.24,
       "speech_start_ms": 100,
       "speech_end_ms": 6020,
       "rms_peak": 0.3601
@@ -50,8 +48,6 @@
       "category": "pause",
       "expected_complete": false,
       "voice_id": "XnKbmWxx8uWjruHkpXmf",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 8.324,
       "speech_start_ms": 80,
       "speech_end_ms": 8120,
       "rms_peak": 0.31
@@ -60,25 +56,20 @@
       "turn": 2,
       "speaker": 1,
       "start_ms": 0,
-      "end_ms": 5480,
-      "duration_ms": 5480,
-      "text": " urm Michael Turner [pause] born April fourteenth, nineteen eighty five.",
-      "word_count": 10,
-      "hesitations": [
-        {
-          "at_ms": 1520,
-          "duration_ms": 1180
-        }
-      ],
-      "max_hesitation_ms": 1180,
-      "category": "hesitation",
-      "expected_complete": false,
+      "end_ms": 3280,
+      "duration_ms": 3280,
+      "text": "Michael Turner, born April fourteenth, nineteen eighty five.",
+      "word_count": 8,
+      "hesitations": [],
+      "max_hesitation_ms": 0,
+      "category": "normal",
+      "expected_complete": true,
       "voice_id": "maYJAY8nOIBZeB0UYfc5",
       "alignment_start_s": 0.0,
-      "alignment_end_s": 5.6,
-      "speech_start_ms": 80,
-      "speech_end_ms": 5280,
-      "rms_peak": 0.4029
+      "alignment_end_s": 3.28,
+      "speech_start_ms": 40,
+      "speech_end_ms": 3260,
+      "rms_peak": 0.3505
     },
     {
       "turn": 3,
@@ -93,8 +84,6 @@
       "category": "normal",
       "expected_complete": true,
       "voice_id": "QoC8og5VjCQoTz0caaaO",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 1.04,
       "speech_start_ms": 160,
       "speech_end_ms": 980,
       "rms_peak": 0.1404
@@ -117,8 +106,6 @@
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "VUGQSU6BSEjkbudnJbOj",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 2.986,
       "speech_start_ms": 0,
       "speech_end_ms": 2940,
       "rms_peak": 0.3727
@@ -136,8 +123,6 @@
       "category": "normal",
       "expected_complete": true,
       "voice_id": "1AKkSX7KMPHIWuz76m0n",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 2.08,
       "speech_start_ms": 40,
       "speech_end_ms": 2060,
       "rms_peak": 0.359
@@ -155,8 +140,6 @@
       "category": "ambiguous",
       "expected_complete": true,
       "voice_id": "XnKbmWxx8uWjruHkpXmf",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 0.4,
       "speech_start_ms": 40,
       "speech_end_ms": 380,
       "rms_peak": 0.2902
@@ -179,8 +162,6 @@
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "QoC8og5VjCQoTz0caaaO",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 5.44,
       "speech_start_ms": 40,
       "speech_end_ms": 3940,
       "rms_peak": 0.1352
@@ -198,8 +179,6 @@
       "category": "ambiguous",
       "expected_complete": true,
       "voice_id": "QoC8og5VjCQoTz0caaaO",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 2.0,
       "speech_start_ms": 160,
       "speech_end_ms": 1780,
       "rms_peak": 0.1188
@@ -217,8 +196,6 @@
       "category": "normal",
       "expected_complete": true,
       "voice_id": "XnKbmWxx8uWjruHkpXmf",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 4.0,
       "speech_start_ms": 0,
       "speech_end_ms": 3980,
       "rms_peak": 0.4394
@@ -241,8 +218,6 @@
       "category": "pause",
       "expected_complete": false,
       "voice_id": "VUGQSU6BSEjkbudnJbOj",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 4.4,
       "speech_start_ms": 40,
       "speech_end_ms": 4380,
       "rms_peak": 0.3603
@@ -265,8 +240,6 @@
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "maYJAY8nOIBZeB0UYfc5",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 4.88,
       "speech_start_ms": 60,
       "speech_end_ms": 4860,
       "rms_peak": 0.3992
@@ -289,8 +262,6 @@
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "QoC8og5VjCQoTz0caaaO",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 5.929,
       "speech_start_ms": 0,
       "speech_end_ms": 5660,
       "rms_peak": 0.2665
@@ -313,8 +284,6 @@
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "maYJAY8nOIBZeB0UYfc5",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 4.976,
       "speech_start_ms": 80,
       "speech_end_ms": 4880,
       "rms_peak": 0.3588
@@ -337,8 +306,6 @@
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "VUGQSU6BSEjkbudnJbOj",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 6.481,
       "speech_start_ms": 40,
       "speech_end_ms": 6460,
       "rms_peak": 0.418
@@ -361,8 +328,6 @@
       "category": "pause",
       "expected_complete": false,
       "voice_id": "QoC8og5VjCQoTz0caaaO",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 5.604,
       "speech_start_ms": 60,
       "speech_end_ms": 4600,
       "rms_peak": 0.2464
@@ -385,8 +350,6 @@
       "category": "pause",
       "expected_complete": false,
       "voice_id": "XnKbmWxx8uWjruHkpXmf",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 4.16,
       "speech_start_ms": 60,
       "speech_end_ms": 3960,
       "rms_peak": 0.2847
@@ -409,8 +372,6 @@
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "VUGQSU6BSEjkbudnJbOj",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 4.331,
       "speech_start_ms": 20,
       "speech_end_ms": 4300,
       "rms_peak": 0.3887
@@ -433,8 +394,6 @@
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "1AKkSX7KMPHIWuz76m0n",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 7.12,
       "speech_start_ms": 0,
       "speech_end_ms": 6380,
       "rms_peak": 0.5236
@@ -452,8 +411,6 @@
       "category": "ambiguous",
       "expected_complete": true,
       "voice_id": "maYJAY8nOIBZeB0UYfc5",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 3.28,
       "speech_start_ms": 100,
       "speech_end_ms": 3260,
       "rms_peak": 0.4343
@@ -471,8 +428,6 @@
       "category": "normal",
       "expected_complete": true,
       "voice_id": "1AKkSX7KMPHIWuz76m0n",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 2.24,
       "speech_start_ms": 80,
       "speech_end_ms": 2220,
       "rms_peak": 0.4858
