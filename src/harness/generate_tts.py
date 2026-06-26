@@ -356,7 +356,7 @@ SENTENCES_BENCHMARK1 = [
     {
         "voice": 0,
         "category": "pause",
-        "text": "Yeah, I got a bill for [hesitation] [pause] six hundred and eighty dollars and I can't pay it all today.",
+        "text": "Yeah, I got a bill for [pause] six hundred and eighty dollars and I can't pay it all today.",
         "expected_complete": False,
     },
     # 2 — normal (name + DoB recited cleanly; no engineered gap).
@@ -368,9 +368,10 @@ SENTENCES_BENCHMARK1 = [
         "text": "Michael Turner, born April fourteenth, nineteen eighty five.",
         "expected_complete": True,
     },
-    # 3 — normal (short complete answer; LES voice — new speaker in the mix)
+    # 3 — normal (short complete answer; voice 4 — the LES voice didn't
+    #   read "Payment plan." cleanly)
     {
-        "voice": 5,
+        "voice": 4,
         "category": "normal",
         "text": "Payment plan.",
         "expected_complete": True,
