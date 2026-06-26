@@ -392,26 +392,26 @@
       "turn": 18,
       "speaker": 4,
       "start_ms": 0,
-      "end_ms": 4800,
-      "duration_ms": 4800,
-      "text": "The problem is my old subscription [hesitation] [pause] was cancelled without any notice.",
-      "word_count": 13,
+      "end_ms": 5920,
+      "duration_ms": 5920,
+      "text": "The problem is my old subscription [hesitation] [hesitation] [pause] was cancelled without any notice.",
+      "word_count": 14,
       "hesitations": [
         {
-          "at_ms": 2100,
-          "duration_ms": 560
+          "at_ms": 2460,
+          "duration_ms": 680
         }
       ],
-      "max_hesitation_ms": 560,
+      "max_hesitation_ms": 680,
       "category": "hesitation",
       "expected_complete": false,
       "voice_id": "BZgkqPqms7Kj9ulSkVzn",
       "alignment_start_s": 0.0,
       "alignment_end_s": 4.402,
       "speech_start_ms": 60,
-      "speech_end_ms": 4680,
-      "rms_peak": 0.475,
-      "zero_run_ms": 560
+      "speech_end_ms": 5460,
+      "rms_peak": 0.4147,
+      "zero_run_ms": 680
     },
     {
       "turn": 19,

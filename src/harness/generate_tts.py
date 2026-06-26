@@ -486,7 +486,7 @@ SENTENCES_BENCHMARK1 = [
     {
         "voice": 4,
         "category": "hesitation",
-        "text": "The problem is my old subscription [hesitation] [pause] was cancelled without any notice.",
+        "text": "The problem is my old subscription [hesitation] [hesitation] [pause] was cancelled without any notice.",
         "expected_complete": False,
     },
     # 19 — ambiguous (kept from original turn 24)
