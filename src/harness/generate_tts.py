@@ -519,28 +519,28 @@ SENTENCES_BENCHMARK2 = [
      "text": "I'm going to say some random things to see how you respond. Please keep your responses to under ten words.",
      "expected_complete": True},
     {"voice": 4, "category": "hesitation",
-     "text": "Ask them [hesitation] [hesitation] urr why insurance didn't cover it.",
+     "text": "Ask them [hesitation] [hesitation] [pause] [pause] urr why insurance didn't cover it.",
      "expected_complete": False},
     {"voice": 4, "category": "hesitation",
-     "text": "Update my [pause] billing address please.",
+     "text": "Update my [pause] [pause] billing address please.",
      "expected_complete": False},
     {"voice": 4, "category": "hesitation",
-     "text": "The last time I checked it was [pause] somewhere around forty five dollars.",
+     "text": "The last time I checked it was [pause] [pause] somewhere around forty five dollars.",
      "expected_complete": False},
     {"voice": 4, "category": "hesitation",
-     "text": "So what happened was the system [hesitation] [hesitation] [pause] flagged my account for some reason.",
+     "text": "So what happened was the system [hesitation] [hesitation] [pause] [pause] flagged my account for some reason.",
      "expected_complete": False},
     {"voice": 4, "category": "hesitation",
-     "text": "We could also try [hesitation] [pause] yeah, the other location might work better.",
+     "text": "We could also try [hesitation] [hesitation] [pause] [pause] yeah, the other location might work better.",
      "expected_complete": False},
     {"voice": 4, "category": "hesitation",
-     "text": "I was going to renew but then the [hesitation] [hesitation] [pause] price went up by almost double.",
+     "text": "I was going to renew but then the [hesitation] [hesitation] [pause] [pause] price went up by almost double.",
      "expected_complete": False},
     {"voice": 4, "category": "hesitation",
-     "text": "The appointment was for [hesitation] [hesitation] [pause] uh, I think it was three thirty.",
+     "text": "The appointment was for [hesitation] [hesitation] [pause] [pause] uh, I think it was three thirty.",
      "expected_complete": False},
     {"voice": 4, "category": "hesitation",
-     "text": "The problem is my old subscription [hesitation] [hesitation] [pause] [pause] was cancelled without any notice.",
+     "text": "The problem is my old subscription [hesitation] [hesitation] [hesitation] [pause] [pause] [pause] was cancelled without any notice.",
      "expected_complete": False},
 ]
 
@@ -1650,7 +1650,7 @@ def generate_benchmark1(
 
 
 BENCHMARK2_ORIG_DIR = BASE_DIR / "out" / "Benchmark_2_Original"
-BENCHMARK2_TARGET_BAND = (1000, 2000)  # ms — design band for Benchmark 2 gaps
+BENCHMARK2_TARGET_BAND = (1500, 2500)  # ms — design band for Benchmark 2 gaps
 BENCHMARK2_MAX_ATTEMPTS = 7            # ElevenLabs is non-deterministic; re-roll up to N
 
 
