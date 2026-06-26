@@ -96,6 +96,8 @@ Older versions of this corpus also had a `hesitation2` category for prosody-only
 | `benchmark_1_zeroed` | Bit-perfect int16-zero, with 3 ms linear edge fade | Default. Amplitude-driven EOT detectors see a true zero-amplitude window. |
 | `benchmark_1_original` | Natural ElevenLabs content — quiet decay tails, background noise | EOT detectors that rely on prosodic / energy cues rather than a hard zero floor. |
 
+**`benchmark_1_original` is preserved exactly as ElevenLabs returned it** (after the standard MP3 → 48 kHz mono 16-bit PCM WAV transcode). We do not trim leading silence, do not pad trailing silence, do not normalize, do not denoise. If ElevenLabs ends a clip mid-syllable, the Original carries that mid-syllable end. The Zeroed source is identical to Original except for the bit-perfect-zero gap window with 3 ms edge fade.
+
 **The two sources share the same test-gap window.** Detection runs ONCE on the Original WAV (via `_analyze_speech_boundaries(min_gap_ms=150)`); the resulting `[at_ms, at_ms+duration_ms)` window is written into **both** indexes as `hesitations[0]` and is the canonical paired test-gap value. Zeroed entries also carry a `zero_run_ms` field with the actual contiguous int16-zero run length — **diagnostic only**, never used as the paired duration. Never re-detect after zeroing.
 
 The UI "Gap ms" column shows `hesitations[0].duration_ms` (the detector window), identical between the two sources for any given turn.
