@@ -47,7 +47,7 @@ VOICES = {
     1: "maYJAY8nOIBZeB0UYfc5",
     2: "QoC8og5VjCQoTz0caaaO",
     3: "VUGQSU6BSEjkbudnJbOj",
-    4: "1AKkSX7KMPHIWuz76m0n",
+    4: "BZgkqPqms7Kj9ulSkVzn",
     5: "Nmd04QDxMhcTd5ocBsuE",  # LES profile voice
 }
 
@@ -486,7 +486,7 @@ SENTENCES_BENCHMARK1 = [
     {
         "voice": 4,
         "category": "hesitation",
-        "text": "The problem is my old subscription [pause] was cancelled without any notice.",
+        "text": "The problem is my old subscription [hesitation] [pause] was cancelled without any notice.",
         "expected_complete": False,
     },
     # 19 — ambiguous (kept from original turn 24)

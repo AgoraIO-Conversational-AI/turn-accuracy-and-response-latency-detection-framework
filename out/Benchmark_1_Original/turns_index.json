@@ -8,7 +8,7 @@
     "1": "maYJAY8nOIBZeB0UYfc5",
     "2": "QoC8og5VjCQoTz0caaaO",
     "3": "VUGQSU6BSEjkbudnJbOj",
-    "4": "1AKkSX7KMPHIWuz76m0n",
+    "4": "BZgkqPqms7Kj9ulSkVzn",
     "5": "Nmd04QDxMhcTd5ocBsuE"
   },
   "_note": "Raw ElevenLabs WAVs (post-transcode, pre-zero). Natural low-amplitude content sits inside the hesitations.at_ms / duration_ms window. Detector window is shared with Benchmark 1 Zeroed (paired test gap).",
@@ -83,8 +83,6 @@
       "category": "normal",
       "expected_complete": true,
       "voice_id": "Nmd04QDxMhcTd5ocBsuE",
-      "alignment_start_s": 0.0,
-      "alignment_end_s": 1.12,
       "speech_start_ms": 60,
       "speech_end_ms": 1040,
       "rms_peak": 0.3459
@@ -115,18 +113,20 @@
       "turn": 5,
       "speaker": 4,
       "start_ms": 0,
-      "end_ms": 2080,
-      "duration_ms": 2080,
+      "end_ms": 2160,
+      "duration_ms": 2160,
       "text": "That's fine, just do the payment plan.",
       "word_count": 7,
       "hesitations": [],
       "max_hesitation_ms": 0,
       "category": "normal",
       "expected_complete": true,
-      "voice_id": "1AKkSX7KMPHIWuz76m0n",
-      "speech_start_ms": 40,
-      "speech_end_ms": 2060,
-      "rms_peak": 0.359
+      "voice_id": "BZgkqPqms7Kj9ulSkVzn",
+      "alignment_start_s": 0.0,
+      "alignment_end_s": 2.16,
+      "speech_start_ms": 0,
+      "speech_end_ms": 2000,
+      "rms_peak": 0.2719
     },
     {
       "turn": 6,
@@ -381,23 +381,25 @@
       "turn": 18,
       "speaker": 4,
       "start_ms": 0,
-      "end_ms": 6400,
-      "duration_ms": 6400,
-      "text": "The problem is my old subscription [pause] was cancelled without any notice.",
-      "word_count": 12,
+      "end_ms": 4800,
+      "duration_ms": 4800,
+      "text": "The problem is my old subscription [hesitation] [pause] was cancelled without any notice.",
+      "word_count": 13,
       "hesitations": [
         {
-          "at_ms": 2640,
-          "duration_ms": 1460
+          "at_ms": 2100,
+          "duration_ms": 560
         }
       ],
-      "max_hesitation_ms": 1460,
+      "max_hesitation_ms": 560,
       "category": "hesitation",
       "expected_complete": false,
-      "voice_id": "1AKkSX7KMPHIWuz76m0n",
-      "speech_start_ms": 0,
-      "speech_end_ms": 6380,
-      "rms_peak": 0.5236
+      "voice_id": "BZgkqPqms7Kj9ulSkVzn",
+      "alignment_start_s": 0.0,
+      "alignment_end_s": 4.402,
+      "speech_start_ms": 60,
+      "speech_end_ms": 4680,
+      "rms_peak": 0.475
     },
     {
       "turn": 19,
@@ -420,18 +422,20 @@
       "turn": 20,
       "speaker": 4,
       "start_ms": 0,
-      "end_ms": 2240,
-      "duration_ms": 2240,
+      "end_ms": 2000,
+      "duration_ms": 2000,
       "text": "Thanks for your help, I appreciate it.",
       "word_count": 7,
       "hesitations": [],
       "max_hesitation_ms": 0,
       "category": "normal",
       "expected_complete": true,
-      "voice_id": "1AKkSX7KMPHIWuz76m0n",
-      "speech_start_ms": 80,
-      "speech_end_ms": 2220,
-      "rms_peak": 0.4858
+      "voice_id": "BZgkqPqms7Kj9ulSkVzn",
+      "alignment_start_s": 0.0,
+      "alignment_end_s": 2.0,
+      "speech_start_ms": 120,
+      "speech_end_ms": 1820,
+      "rms_peak": 0.1307
     }
   ]
 }
