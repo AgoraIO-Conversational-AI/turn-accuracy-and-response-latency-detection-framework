@@ -87,7 +87,11 @@ function handleMessage(msg) {
     case "response_detected":
       // Browser-mode already painted the cell locally in phaseHandler.
       if (msg.source !== "browser") setTurnTtfa(msg.turn, msg.ttfa_ms);
-      updateCurrentTurnMeta(`TTFA: ${msg.ttfa_ms.toFixed(0)}ms — recording response...`);
+      updateCurrentTurnMeta(
+        msg.ttfa_ms != null
+          ? `TTFA: ${msg.ttfa_ms.toFixed(0)}ms — recording response...`
+          : `Response detected — recording...`,
+      );
       break;
 
     case "turn_done":
@@ -107,9 +111,6 @@ function handleMessage(msg) {
         setTurnStatus(msg.turn, msg.status);
         if (!msg.barge_in && msg.ttfa_ms != null) {
           setTurnTtfa(msg.turn, msg.ttfa_ms);
-        }
-        if (!msg.barge_in && msg.ttfa2_ms != null) {
-          setTurnTtfa2(msg.turn, msg.ttfa2_ms);
         }
       }
       if (msg.summary) {
@@ -489,7 +490,6 @@ function renderTurnTable() {
         <td>${(turn.duration_ms / 1000).toFixed(1)}s</td>
         <td>${silenceText}</td>
         <td class="ttfa-cell" id="ttfa-${turn.turn}">—</td>
-        <td class="ttfa-cell" id="ttfa2-${turn.turn}">—</td>
         <td id="status-${turn.turn}"><span class="status-badge status-pending">pending</span></td>
         <td><button class="btn-play-single" title="Plays turn 0 (opener / instructions) first to prime the agent, then resumes from this turn through the end" onclick="playSingle(${turn.turn})">Start</button></td>
       </tr>
@@ -501,15 +501,15 @@ function renderTurnTable() {
   // used to sit so screen recordings end on the headline numbers.
   html += `
     <tr id="turn-row-summary" class="summary-row">
-      <td colspan="10" class="summary-strip">
+      <td colspan="9" class="summary-strip">
         <span>Turns <b id="stat-total">—</b></span>
         <span>Completed <b id="stat-completed">—</b></span>
         <span>Barge-ins <b id="stat-bargein">—</b></span>
         <span>No Response <b id="stat-noresp">—</b></span>
         <span>Avg TTFA <b id="stat-avg">—</b></span>
-        <span>Avg TTFA2 <b id="stat-avg2">—</b></span>
+        <span>Median TTFA <b id="stat-median">—</b></span>
         <span>P95 TTFA <b id="stat-p95">—</b></span>
-        <span>P95 TTFA2 <b id="stat-p952">—</b></span>
+        <span title="Turns used in the TTFA stats (reliable anchor, not a barge-in). Excluded = measured but untrusted anchor.">Used <b id="stat-count">—</b></span>
       </td>
     </tr>
   `;
@@ -531,21 +531,15 @@ function setTurnStatus(turnIdx, status) {
 
 function setTurnTtfa(turnIdx, ttfa) {
   const el = document.getElementById(`ttfa-${turnIdx}`);
-  paintTtfaCell(el, ttfa, false);
+  paintTtfaCell(el, ttfa);
 }
 
-function setTurnTtfa2(turnIdx, ttfa) {
-  const el = document.getElementById(`ttfa2-${turnIdx}`);
-  paintTtfaCell(el, ttfa, true);
-}
-
-function paintTtfaCell(el, ttfa, allowNegative) {
+function paintTtfaCell(el, ttfa) {
   if (!el) return;
 
-  // Canonical TTFA keeps negative/barge rows blank. TTFA2 may show a
-  // negative value when the new timing disagrees, so the discrepancy is
-  // visible without changing the run status.
-  if (ttfa == null || (!allowNegative && ttfa < 0)) {
+  // Barge-in / negative-latency rows stay blank in the cell (they are
+  // reported via the Barge-ins count, not as a latency).
+  if (ttfa == null || ttfa < 0) {
     el.textContent = "—";
     return;
   }
@@ -586,24 +580,26 @@ function resetTableStatuses() {
     setTurnStatus(turn.turn, "pending");
     const ttfaEl = document.getElementById(`ttfa-${turn.turn}`);
     if (ttfaEl) ttfaEl.textContent = "—";
-    const ttfa2El = document.getElementById(`ttfa2-${turn.turn}`);
-    if (ttfa2El) ttfa2El.textContent = "—";
   }
 }
 
 function summarizeMetric(field) {
+  // Only reliable-anchor, non-barge, finite, >= 0 rows feed the aggregate —
+  // the same eligibility the server applies in get_summary().
   const values = Object.values(state.results)
-    .filter(r => !r.barge_in && r[field] != null && r[field] >= 0)
+    .filter(r => !r.barge_in && r.ttfa_reliable && r[field] != null && isFinite(r[field]) && r[field] >= 0)
     .map(r => r[field])
     .sort((a, b) => a - b);
-  if (values.length === 0) return { avg: null, p95: null, count: 0 };
-  const avg = values.reduce((a, b) => a + b, 0) / values.length;
-  const idx = (values.length - 1) * 0.95;
+  if (values.length === 0) return { avg: null, median: null, p95: null, count: 0 };
+  const n = values.length;
+  const avg = values.reduce((a, b) => a + b, 0) / n;
+  const median = n % 2 === 0 ? (values[n / 2 - 1] + values[n / 2]) / 2 : values[(n - 1) / 2];
+  const idx = (n - 1) * 0.95;
   const low = Math.floor(idx);
-  const high = Math.min(low + 1, values.length - 1);
+  const high = Math.min(low + 1, n - 1);
   const frac = idx - low;
   const p95 = values[low] + frac * (values[high] - values[low]);
-  return { avg, p95, count: values.length };
+  return { avg, median, p95, count: n };
 }
 
 function setSummaryMetric(id, value) {
@@ -613,17 +609,16 @@ function setSummaryMetric(id, value) {
 
 function updateSummaryRow() {
   // Client-side fallback so metrics tick live between server summary
-  // events. Server-side renderSummary() supersedes this when its
-  // summary message arrives for TTFA. TTFA2 is browser-only, so it is
-  // summarized here from the submitted result objects.
+  // events. Server-side renderSummary() supersedes this when its summary
+  // message arrives.
   const ttfa = summarizeMetric("ttfa_ms");
-  const ttfa2 = summarizeMetric("ttfa2_ms");
   if (ttfa.count > 0) {
     setSummaryMetric("stat-avg", ttfa.avg);
+    setSummaryMetric("stat-median", ttfa.median);
     setSummaryMetric("stat-p95", ttfa.p95);
   }
-  setSummaryMetric("stat-avg2", ttfa2.avg);
-  setSummaryMetric("stat-p952", ttfa2.p95);
+  const countEl = document.getElementById("stat-count");
+  if (countEl) countEl.textContent = ttfa.count > 0 ? String(ttfa.count) : "—";
 }
 
 function renderCurrentTurn(msg) {}
@@ -637,11 +632,17 @@ function renderSummary(data) {
   document.getElementById("stat-noresp").textContent = data.no_response_count ?? "—";
   document.getElementById("stat-avg").textContent =
     data.ttfa_avg_ms != null ? `${Math.round(data.ttfa_avg_ms)}ms` : "—";
+  document.getElementById("stat-median").textContent =
+    data.ttfa_median_ms != null ? `${Math.round(data.ttfa_median_ms)}ms` : "—";
   document.getElementById("stat-p95").textContent =
     data.ttfa_p95_ms != null ? `${Math.round(data.ttfa_p95_ms)}ms` : "—";
-  document.getElementById("stat-avg2").textContent = "—";
-  document.getElementById("stat-p952").textContent = "—";
-  updateSummaryRow();
+  const countEl = document.getElementById("stat-count");
+  if (countEl && data.ttfa_count != null) {
+    countEl.textContent = data.ttfa_excluded_unreliable
+      ? `${data.ttfa_count} (−${data.ttfa_excluded_unreliable})`
+      : String(data.ttfa_count);
+  }
+  // Server summary is authoritative; don't let the client fallback overwrite it.
 }
 
 function updateControls() {
@@ -1065,13 +1066,10 @@ async function runBrowserTurnFlow(turn, signal, runId, cap) {
   if (!result.barge_in && result.ttfa_ms != null) {
     setTurnTtfa(turn.turn, result.ttfa_ms);
   }
-  if (!result.barge_in && result.ttfa2_ms != null) {
-    setTurnTtfa2(turn.turn, result.ttfa2_ms);
-  }
   benchLog(
     `turn ${turn.turn} done — status=${result.status} ` +
     `ttfa=${result.ttfa_ms?.toFixed?.(0) ?? "—"} ` +
-    `ttfa2=${result.ttfa2_ms?.toFixed?.(0) ?? "—"} ` +
+    `reliable=${result.ttfa_reliable} anchor=${result.ttfa_anchor_source ?? "—"} ` +
     `barge=${result.barge_in}`,
   );
   // POST to server so it goes into the canonical results store.

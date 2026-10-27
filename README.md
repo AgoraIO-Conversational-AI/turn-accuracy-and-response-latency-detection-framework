@@ -24,8 +24,8 @@ Three stages:
 
 | Metric | Description | Thresholds |
 |--------|-------------|------------|
-| **TTFA** | Time from end of user turn to first agent audio | Green <500ms, Yellow 500–1500ms, Red >1500ms |
-| **Barge-in** | Agent speaks during a mid-turn hesitation gap | Detected via negative TTFA or gap overlap |
+| **TTFA** | Wall-clock latency from the end of the prompt's **speech** (`speech_end_ms`, excludes trailing silence) to the agent's first audio, anchored to the `<audio>` `playing` event. | Green <500ms, Yellow 500–1500ms, Red >1500ms |
+| **Barge-in** | Agent speaks during a mid-turn hesitation gap, or before the prompt's speech ends | Detected via negative TTFA or gap overlap |
 | **No Response** | Agent fails to respond within timeout | Default 10s timeout |
 
 ---

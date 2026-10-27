@@ -6,7 +6,7 @@ A framework for measuring Conversational AI agent quality through automated turn
 
 ## Key Metrics Measured
 
-- **TTFA** (Time to First Audio) — latency from end of user turn to agent speech
+- **TTFA** (Time to First Audio) — wall-clock latency from the end of the prompt's speech (`speech_end_ms`) to the agent's first audio, anchored to the `<audio>` `playing` event
 - **Barge-in** — agent interrupts during mid-turn hesitation gaps
 - **No Response** — agent fails to respond within timeout
 

@@ -43,7 +43,9 @@ The TurnManager adds its own `response_silence_timeout` (3s) on top.
 
 ## Audio-Time vs Wall-Clock
 
-The detector emits sample-accurate timestamps (`time_s = total_samples / 16000`). These represent audio-domain time since the last `reset()` call, which occurs just before playback starts. The TurnManager uses these audio-time values for TTFA calculation, avoiding event-loop scheduling jitter.
+The detector emits sample-accurate timestamps (`time_s = total_samples / sampleRate`, using the AudioContext's actual rate). These represent audio-domain time since the last `reset()`/arm, which occurs just before playback starts.
+
+The **browser** TTFA metric is pure **wall-clock** — `ttfa_ms = firstInputSpeechWall − (playingWall + speech_end_ms)` — so it does not depend on audio-time and is unaffected by a rejected sample-rate hint (e.g. BlackHole forcing 48 kHz); audio-time is kept only for diagnostics. The legacy **server-side** path still uses audio-time for its TTFA (and is marked unreliable / excluded from the aggregate until it gains a real playback-onset anchor).
 
 ## Latency Characteristics
 

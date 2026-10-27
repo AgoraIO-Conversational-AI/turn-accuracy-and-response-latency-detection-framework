@@ -53,8 +53,13 @@ export function canSelectOutputDevice() {
 // --- VAD ---
 
 class BrowserVad {
-  constructor() {
-    this.minSilenceSamples = Math.round((VAD_RATE * VAD_MIN_SILENCE_MS) / 1000);
+  // sampleRate: the AudioContext's ACTUAL rate. When the 16 kHz hint is
+  // rejected (e.g. macOS BlackHole → 48 kHz), frame durations and the
+  // silence gate must use the real rate, or VAD_MIN_SILENCE_MS (300 ms)
+  // collapses to ~107 ms at 48 kHz and audio-time runs 3× fast.
+  constructor(sampleRate = VAD_RATE) {
+    this.rate = sampleRate || VAD_RATE;
+    this.minSilenceSamples = Math.round((this.rate * VAD_MIN_SILENCE_MS) / 1000);
     this.reset();
   }
   reset() {
@@ -85,7 +90,7 @@ class BrowserVad {
           this.active = true;
           events.push({
             type: "speech_start",
-            timeS: this.totalSamples / VAD_RATE,
+            timeS: this.totalSamples / this.rate,
           });
         }
       } else if (this.active) {
@@ -94,7 +99,7 @@ class BrowserVad {
           this.active = false;
           events.push({
             type: "speech_end",
-            timeS: this.totalSamples / VAD_RATE,
+            timeS: this.totalSamples / this.rate,
           });
           this.silence = 0;
         }
@@ -147,7 +152,7 @@ async function startCapture(inputDeviceId) {
   // input currently quiet?" while we're transitioning between turns.
   // (Disarming the VAD would freeze isSpeechActive at whatever value
   // it had at disarm time, defeating the inter-turn silence gate.)
-  const vad = new BrowserVad();
+  const vad = new BrowserVad(actualSr);
   let armWall = performance.now();
   let speechStartedAt = null;     // audio-time (s) of first speech_start since arm
   let firstSpeechWall = null;     // performance.now() at first speech_start frame
@@ -185,7 +190,7 @@ async function startCapture(inputDeviceId) {
   // Audio-time offset captured at each arm so per-turn `speechStartedAt`
   // is relative to the arm point, not the absolute start of capture.
   let armAudioTime = 0;
-  const getAudioTimeSeconds = () => vad.totalSamples / VAD_RATE;
+  const getAudioTimeSeconds = () => vad.totalSamples / vad.rate;
 
   const armForTurn = () => {
     // VAD keeps running between turns (so isSpeechActive stays
@@ -557,6 +562,59 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
     ? playController.ended.then(() => { playbackEndWall = performance.now(); })
     : Promise.resolve();
 
+  // ---- Single latency metric: speech-end → response-start (wall-clock) ----
+  // Resolve the two anchors ONCE, up front, so the poll loop computes the
+  // metric live and never re-reads a moving clock after awaits:
+  //   1) the real playback-onset wall (the <audio> 'playing' event), and
+  //   2) the prompt's speech-end offset (canonical index value, else a
+  //      decoded-WAV RMS fallback).
+  // Capture is already armed (armBeforePlay ran inside startPlayback), so an
+  // onset occurring during this short await is preserved in cap.*.
+  let playbackStartInfo;
+  try {
+    playbackStartInfo = playController?.playbackStart
+      ? await playController.playbackStart
+      : { wall: null, source: "missing_playback_controller" };
+  } catch (e) {
+    playbackStartInfo = { wall: null, source: "playback_start_error", error: formatError(e) };
+  }
+  // Only the genuine 'playing' event is a trustworthy zero point; the
+  // play-call fallback (no 'playing' within PLAYING_FALLBACK_MS) or a
+  // rejection carries the scheduling delay T_delay and is flagged so the
+  // server can exclude it from the aggregate.
+  const anchorReliable = playbackStartInfo?.source === "playing";
+  const anchorWall = Number.isFinite(playbackStartInfo?.wall)
+    ? playbackStartInfo.wall
+    : null;
+
+  // Prompt speech-end offset (ms from clip start). Prefer the canonical
+  // index value; fall back to the decoded-WAV RMS end only when the index
+  // value is missing/out of range. Decode failure must NOT discard a valid
+  // index value.
+  let promptEndOffsetMs = null;
+  let promptEndMethod = null;
+  let ttfaError = null;
+  const idxSpeechEnd = turn.speech_end_ms != null ? Number(turn.speech_end_ms) : null;
+  if (Number.isFinite(idxSpeechEnd) && idxSpeechEnd >= 0 && idxSpeechEnd <= expectedEndMs) {
+    promptEndOffsetMs = idxSpeechEnd;
+    promptEndMethod = "index_speech_end_ms";
+  } else {
+    try {
+      const ot = await outputTimingPromise;
+      if (ot && !ot.error && Number.isFinite(ot.last_output_speech_ms)) {
+        promptEndOffsetMs = ot.last_output_speech_ms;
+        promptEndMethod = "decoded_wav_rms_fallback";
+      }
+    } catch {}
+    if (promptEndOffsetMs === null) ttfaError = "no_speech_end";
+  }
+  if (anchorWall === null) ttfaError = ttfaError || "no_playback_anchor";
+  log(
+    `anchor: source=${playbackStartInfo?.source} reliable=${anchorReliable} ` +
+    `promptEnd=${promptEndOffsetMs != null ? promptEndOffsetMs.toFixed(0) : "?"}ms ` +
+    `(${promptEndMethod ?? "none"})`,
+  );
+
   // Stop pipeline + abort listener: if the caller aborts, stop the
   // audio elements + bail the poll loop ASAP.
   const onAbort = () => {
@@ -567,14 +625,20 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
 
   const result = {
     turn: turn.turn,
+    // THE metric: wall-clock latency from prompt speech-end to response-start.
     ttfa_ms: null,
-    ttfa2_ms: null,
+    ttfa_anchor_source: playbackStartInfo?.source ?? null,
+    ttfa_reliable: anchorReliable,
+    ttfa_error: ttfaError,
+    prompt_end_ms: promptEndOffsetMs,
+    prompt_end_wall_method: promptEndMethod,
     barge_in: false,
     barge_in_at_ms: null,
     response_duration_ms: null,
     status: "playing",
   };
   let firstSpeechAudioMs = null;
+  let firstSpeechWallFrozen = null;   // onset wall, frozen at detection (no re-read)
 
   const startWall = cap.startWall;
   while (true) {
@@ -588,62 +652,61 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
     const pastExpectedEnd = elapsedS * 1000 > expectedEndMs;
 
     if (firstSpeechAudioMs === null && cap.speechStartedAtMs !== null) {
-      firstSpeechAudioMs = cap.speechStartedAtMs;
-      // Zero point for TTFA is *playback start*, not capture start.
-      // Capture opens before mkAudio()/setSinkId()/canplaythrough are
-      // ready, and that capture→play gap is non-zero (sometimes
-      // multi-second when the page accumulates leaked Audio elements).
-      // `playController.startWall` is the actual moment primary.play()
-      // was called.
-      const playStartWall = playController?.startWall ?? cap.startWall;
-      const captureToPlayMs = playStartWall - cap.startWall;
-      // Audio-time TTFA, offset by the capture→play gap.
-      const audioFromPlayMs = firstSpeechAudioMs - captureToPlayMs;
-      const ttfaAudio = audioFromPlayMs - expectedEndMs;
-      // Wall-clock TTFA — independent of audio-time math.
-      const wallFromPlayMs = cap.firstSpeechWallMs != null
-        ? (cap.firstSpeechWallMs - playStartWall)
-        : null;
-      const ttfaWall = wallFromPlayMs != null
-        ? (wallFromPlayMs - expectedEndMs)
-        : null;
-      const rateMismatch = cap.actualSampleRate !== VAD_RATE;
-      // Use wall-clock when the rate hint was rejected, otherwise the
-      // audio-time number (which has slightly less bias).
-      const ttfa = rateMismatch && ttfaWall != null ? ttfaWall : ttfaAudio;
-      log(
-        `speech_start: ` +
-        `audio-time-from-capture=${firstSpeechAudioMs.toFixed(0)}ms ` +
-        `wall-from-capture=${cap.firstSpeechWallMs != null ? (cap.firstSpeechWallMs - cap.startWall).toFixed(0) : "?"}ms ` +
-        `capture→play=${captureToPlayMs.toFixed(0)}ms ` +
-        `expectedEnd=${expectedEndMs}ms ` +
-        `ttfa(audio)=${ttfaAudio.toFixed(0)}ms ` +
-        `ttfa(wall)=${ttfaWall?.toFixed?.(0) ?? "?"}ms ` +
-        `sr=${cap.actualSampleRate} cb=${cap.callbackCount} ` +
-        `→ using ${rateMismatch ? "WALL" : "AUDIO"}`,
-      );
-      if (ttfa < 0) {
-        result.barge_in = true;
-        result.barge_in_at_ms = firstSpeechAudioMs;
-      } else {
-        for (const [gs, ge] of hesWindows) {
-          if (firstSpeechAudioMs >= gs && firstSpeechAudioMs <= ge) {
-            result.barge_in = true;
-            result.barge_in_at_ms = firstSpeechAudioMs;
-            break;
+      firstSpeechAudioMs = cap.speechStartedAtMs;   // audio-time, diagnostic only
+      // Freeze the response-onset wall at the instant of detection so a
+      // later re-read (e.g. during post-timeout finalization) can't move it.
+      firstSpeechWallFrozen = cap.firstSpeechWallMs;
+
+      // THE metric — one monotonic wall clock:
+      //   ttfa_ms = response-onset-wall − (playback-onset-wall + speech_end)
+      // i.e. time from when the prompt's SPEECH ends to when the agent begins.
+      // `fromPlayMs` is the response onset measured from true playback onset;
+      // subtracting the prompt speech-end offset gives latency after speech.
+      const fromPlayMs =
+        firstSpeechWallFrozen != null && anchorWall != null
+          ? firstSpeechWallFrozen - anchorWall
+          : null;
+      const ttfa =
+        fromPlayMs != null && promptEndOffsetMs != null
+          ? fromPlayMs - promptEndOffsetMs
+          : null;
+
+      // Barge-in is derived from the SAME speech-end timeline: a negative
+      // latency (agent spoke before the prompt's speech ended) or an onset
+      // landing inside a hesitation gap. Gaps are compared in the same
+      // play-relative wall domain as `fromPlayMs`.
+      let barge = false;
+      if (ttfa != null) {
+        if (ttfa < 0) {
+          barge = true;
+        } else {
+          for (const [gs, ge] of hesWindows) {
+            if (gs >= 0 && gs < ge && ge <= promptEndOffsetMs &&
+                fromPlayMs >= gs && fromPlayMs <= ge) {
+              barge = true;
+              break;
+            }
           }
         }
       }
+      log(
+        `speech_start: from_play=${fromPlayMs != null ? fromPlayMs.toFixed(0) : "?"}ms ` +
+        `promptEnd=${promptEndOffsetMs != null ? promptEndOffsetMs.toFixed(0) : "?"}ms ` +
+        `→ ttfa=${ttfa != null ? ttfa.toFixed(0) : "null"}ms ` +
+        `anchor=${playbackStartInfo?.source}(reliable=${anchorReliable}) ` +
+        `sr=${cap.actualSampleRate} cb=${cap.callbackCount}` +
+        (barge ? " BARGE-IN" : ""),
+      );
       result.ttfa_ms = ttfa;
-      result.ttfa_audio_ms = ttfaAudio;
-      result.ttfa_wall_ms = ttfaWall;
-      result.capture_to_play_ms = captureToPlayMs;
+      result.first_input_from_play_ms = fromPlayMs;
+      result.barge_in = barge;
+      result.barge_in_at_ms = barge ? fromPlayMs : null;
       result.sample_rate = cap.actualSampleRate;
-      if (result.barge_in) result.status = "barge_in";
+      if (barge) result.status = "barge_in";
       // Fire the phase event with a snapshot of the result so the UI
       // can flip the row's status badge + TTFA cell the instant we
       // know — without waiting for the rest of the turn to complete.
-      emit(result.barge_in ? "barge_in" : "response_detected", { ...result });
+      emit(barge ? "barge_in" : "response_detected", { ...result });
     }
 
     // no-response timeout
@@ -694,11 +757,16 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
           if (sinceExpEnd < timeoutS) continue;
         }
         if (silenceDurS >= timeoutS) {
-          const speakStartedWall =
-            startWall + (firstSpeechAudioMs / 1000) * 1000;
+          // Response duration in one wall domain: end-of-response wall minus
+          // the frozen response-onset wall. (Was mixing audio-time onto a
+          // wall anchor, which went ~3× wrong under a 48 kHz rate mismatch.)
+          const speakStartedWall = firstSpeechWallFrozen ?? cap.firstSpeechWallMs;
           const responseDurMs =
-            nowWall - silenceDurS * 1000 - speakStartedWall;
-          result.response_duration_ms = Math.max(0, responseDurMs);
+            speakStartedWall != null
+              ? nowWall - silenceDurS * 1000 - speakStartedWall
+              : null;
+          result.response_duration_ms =
+            responseDurMs != null ? Math.max(0, responseDurMs) : null;
           if (!result.barge_in) result.status = "done";
           else result.status = "barge_in";
           break;
@@ -709,46 +777,18 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
 
   try { await playPromise; } catch {}
   let outputTiming = null;
-  let playbackStartInfo = null;
   if (!signal?.aborted) {
+    // The metric (result.ttfa_ms), its anchor (anchorWall/anchorReliable),
+    // and the prompt speech-end (promptEndOffsetMs) were all resolved BEFORE
+    // the poll loop. Decoding here is for DIAGNOSTICS only and must never
+    // retroactively change the metric or discard a valid index speech-end.
     try {
       outputTiming = await outputTimingPromise;
     } catch (e) {
       outputTiming = { error: formatError(e) };
     }
-    try {
-      playbackStartInfo = playController?.playbackStart
-        ? await playController.playbackStart
-        : { wall: playController?.startWall ?? cap.startWall, source: "missing_playback_controller" };
-    } catch (e) {
-      playbackStartInfo = {
-        wall: playController?.startWall ?? cap.startWall,
-        source: "playback_start_error",
-        error: formatError(e),
-      };
-    }
 
-    if (outputTiming?.error) {
-      result.ttfa2_ms = null;
-      result.playback_start_source = "decode_failed";
-      result.ttfa2_error = outputTiming.error;
-    } else if (playbackStartInfo && outputTiming) {
-      const playStartWall = playbackStartInfo.wall;
-      const inputSpeechStartWall = cap.firstSpeechWallMs;
-      const indexSpeechEndMs =
-        turn.speech_end_ms != null ? Number(turn.speech_end_ms) : null;
-      const hasIndexSpeechEnd = Number.isFinite(indexSpeechEndMs);
-      const promptEndOffsetMs = hasIndexSpeechEnd
-        ? indexSpeechEndMs
-        : outputTiming.last_output_speech_ms;
-      const promptEndMethod = hasIndexSpeechEnd
-        ? "index_speech_end_ms"
-        : "decoded_wav_rms_fallback";
-      const promptEndWall =
-        promptEndOffsetMs !== null && promptEndOffsetMs !== undefined
-          ? playStartWall + promptEndOffsetMs
-          : null;
-
+    if (outputTiming && !outputTiming.error) {
       Object.assign(result, {
         decoded_duration_ms: outputTiming.decoded_duration_ms,
         first_output_speech_ms: outputTiming.first_output_speech_ms,
@@ -757,27 +797,15 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
         output_rms_threshold: outputTiming.output_rms_threshold,
         output_rms_window_ms: outputTiming.output_rms_window_ms,
         output_sample_rate: outputTiming.output_sample_rate,
-        playback_start_source: playbackStartInfo.source,
-        media_ended_minus_playing_ms: playbackEndWall != null ? playbackEndWall - playStartWall : null,
-        first_input_from_play_ms: inputSpeechStartWall != null ? inputSpeechStartWall - playStartWall : null,
-        ttfa_index_ms: firstSpeechAudioMs != null ? firstSpeechAudioMs - expectedEndMs : null,
-        prompt_end_ms: promptEndOffsetMs,
-        prompt_tail_ms: promptEndOffsetMs != null ? Math.max(0, expectedEndMs - promptEndOffsetMs) : null,
-        prompt_end_wall_method: promptEndMethod,
       });
-
-      if (inputSpeechStartWall != null && promptEndWall != null) {
-        result.ttfa2_ms = inputSpeechStartWall - promptEndWall;
-        result.ttfa2_hard_barge_in = inputSpeechStartWall < promptEndWall;
-        result.ttfa2_gap_barge_in = hesWindows.some(([gapStartMs, gapEndMs]) => {
-          const gapStartWall = playStartWall + gapStartMs;
-          const gapEndWall = playStartWall + gapEndMs;
-          return inputSpeechStartWall >= gapStartWall && inputSpeechStartWall <= gapEndWall;
-        });
-      } else if (promptEndWall == null) {
-        result.ttfa2_error = "no_output_speech_detected";
-      }
+    } else if (outputTiming?.error) {
+      result.decode_error = outputTiming.error;
     }
+    result.playback_start_source = playbackStartInfo?.source ?? null;
+    result.prompt_tail_ms =
+      promptEndOffsetMs != null ? Math.max(0, expectedEndMs - promptEndOffsetMs) : null;
+    result.media_ended_minus_playing_ms =
+      playbackEndWall != null && anchorWall != null ? playbackEndWall - anchorWall : null;
 
     console.info("[bench timing]", {
       turn: turn.turn,
@@ -789,23 +817,18 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
       prompt_tail_ms: result.prompt_tail_ms ?? null,
       output_tail_ms: result.output_tail_ms ?? null,
       ttfa_ms: result.ttfa_ms,
-      ttfa_index_ms: result.ttfa_index_ms ?? null,
-      ttfa_wall_ms: result.ttfa_wall_ms ?? null,
-      ttfa2_ms: result.ttfa2_ms,
+      ttfa_reliable: result.ttfa_reliable,
+      ttfa_error: result.ttfa_error ?? null,
       first_input_from_play_ms: result.first_input_from_play_ms ?? null,
       playback_start_source: result.playback_start_source ?? null,
       prompt_end_wall_method: result.prompt_end_wall_method ?? null,
-      ttfa2_hard_barge_in: result.ttfa2_hard_barge_in ?? false,
-      ttfa2_gap_barge_in: result.ttfa2_gap_barge_in ?? false,
-      ttfa2_error: result.ttfa2_error ?? null,
-      vad_frame_ms: (VAD_FRAME / VAD_RATE) * 1000,
+      vad_frame_ms: (VAD_FRAME / (cap.actualSampleRate || VAD_RATE)) * 1000,
     });
     console.info(
       `[bench timing flat] turn=${turn.turn} ` +
       `ttfa=${result.ttfa_ms?.toFixed?.(1) ?? "null"} ` +
-      `ttfa2=${result.ttfa2_ms?.toFixed?.(1) ?? "null"} ` +
-      `ttfa_wall=${result.ttfa_wall_ms?.toFixed?.(1) ?? "null"} ` +
-      `ttfa_index=${result.ttfa_index_ms?.toFixed?.(1) ?? "null"} ` +
+      `reliable=${result.ttfa_reliable} ` +
+      `anchor=${result.playback_start_source ?? "null"} ` +
       `input_from_play=${result.first_input_from_play_ms?.toFixed?.(1) ?? "null"} ` +
       `turn_duration=${expectedEndMs?.toFixed?.(1) ?? expectedEndMs} ` +
       `index_speech_end=${turn.speech_end_ms != null ? Number(turn.speech_end_ms).toFixed(1) : "null"} ` +
@@ -815,9 +838,8 @@ export async function runBrowserTurn(turn, sourceKey, devices, baseUrl, onPhase,
       `last_output_speech=${result.last_output_speech_ms?.toFixed?.(1) ?? "null"} ` +
       `output_tail=${result.output_tail_ms?.toFixed?.(1) ?? "null"} ` +
       `ended_minus_playing=${result.media_ended_minus_playing_ms?.toFixed?.(1) ?? "null"} ` +
-      `playback_start_source=${result.playback_start_source ?? "null"} ` +
       `prompt_end_method=${result.prompt_end_wall_method ?? "null"} ` +
-      `ttfa2_error=${result.ttfa2_error ?? "null"}`,
+      `ttfa_error=${result.ttfa_error ?? "null"}`,
     );
 
     if (turn.speech_end_ms != null && outputTiming?.last_output_speech_ms != null) {

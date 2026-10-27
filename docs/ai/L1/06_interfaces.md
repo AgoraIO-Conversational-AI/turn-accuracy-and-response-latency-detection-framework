@@ -11,7 +11,7 @@
 | GET | `/api/results` | Get current run summary |
 | POST | `/api/devices/configure` | Update server-side device assignments |
 | GET | `/api/wav/{source}/{speaker}/{turn_id}` | Serve a single turn WAV (audio/wav). Used by the browser harness for in-browser playback; also handy for previewing without an audio engine. |
-| POST | `/api/results/submit` | Ingest a browser-measured turn result. Body: `{turn, ttfa_ms, barge_in, barge_in_at_ms, response_duration_ms, status, speaker, ttfa2_ms, decoded_duration_ms, first_output_speech_ms, last_output_speech_ms, output_tail_ms, media_ended_minus_playing_ms, first_input_from_play_ms, playback_start_source, prompt_end_wall_method, ttfa2_hard_barge_in, ttfa2_gap_barge_in, ttfa2_error}`. `ttfa_ms` is the legacy canonical metric; the `ttfa2_*` family is the parallel amplitude-based measurement (Phase A — runs alongside legacy for diff comparison). Server stores it in `TurnManager.run.results` so the existing summary stats + `turn_done` broadcast keep working. |
+| POST | `/api/results/submit` | Ingest a browser-measured turn result. Body: `{turn, ttfa_ms, ttfa_reliable, ttfa_anchor_source, ttfa_error, barge_in, barge_in_at_ms, response_duration_ms, status, speaker, prompt_end_ms, prompt_end_wall_method, prompt_tail_ms, first_input_from_play_ms, playback_start_source, decoded_duration_ms, first_output_speech_ms, last_output_speech_ms, output_tail_ms, media_ended_minus_playing_ms}`. `ttfa_ms` is the single canonical metric (speech-end → response-start, wall-clock); `ttfa_reliable`/`ttfa_anchor_source` gate aggregation. Server stores it in `TurnManager.run.results` so summary stats + the `turn_done` broadcast keep working. |
 
 ## WebSocket (`/ws`)
 

@@ -17,7 +17,11 @@ There's still a ~50-80ms positive bias from:
 
 This is consistent — useful for relative comparisons between turns/agents.
 
-**TTFA2 (parallel amplitude-based metric).** The browser harness now also computes `ttfa2_ms` by decoding the prompt WAV (via `OfflineAudioContext.decodeAudioData`) to find the last RMS-active sample, then anchoring to wall-clock via the `<audio>` element's `playing` event (250 ms fallback to `play()` call time). Subtracts trailing silence from the prompt and removes the WAV-time-vs-wall-clock anchoring drift the legacy method carries. Currently runs alongside legacy TTFA (Phase A) — see `claude_plan.md` and `codex_plan.md` for the rollout plan. The browser logs `[bench drift] turn N` when decoded `last_output_speech_ms` differs from the index's `speech_end_ms` by > 30 ms; that warns of corpus/decoder mismatch and shouldn't fire in normal operation.
+**TTFA is a single wall-clock, speech-end metric.** `ttfa_ms = firstInputSpeechWall − (playingWall + speech_end_ms)` — anchored to the `<audio>` `playing` event (true output onset) and measured from the end of the prompt's *speech* (`speech_end_ms`), not the end of the clip. This excludes trailing silence and removes the play-scheduling delay the earlier clip-end/`.play()`-anchored metric carried. (A previous build ran a second parallel metric, `ttfa2_ms`; it has been consolidated into this one — `ttfa2_*` fields no longer exist.)
+
+- **Anchor reliability.** If the `playing` event doesn't fire within `PLAYING_FALLBACK_MS` (250 ms), the turn falls back to the `.play()`-call wall and is flagged `ttfa_reliable = false` (`ttfa_anchor_source`). Such rows are shown per-turn but **excluded from the aggregate** (`ttfa_excluded_unreliable`); many of them means playback onset isn't being observed.
+- **Sample rate.** `BrowserVad` uses the AudioContext's *actual* rate, so the 300 ms silence gate stays 300 ms even when a device (e.g. BlackHole) forces 48 kHz. The metric is pure wall-clock, so it's unaffected by the rate; audio-time is diagnostic only.
+- **Drift check.** The browser logs `[bench drift] turn N` when the decoded `last_output_speech_ms` differs from the index's `speech_end_ms` by > 30 ms; that warns of corpus/decoder mismatch and shouldn't fire in normal operation.
 
 ## Playback Hang Protection
 

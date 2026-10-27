@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import math
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -104,8 +105,14 @@ class TurnResult:
     speaker: int
     text: str
     duration_ms: int
+    # THE metric: wall-clock latency from prompt speech-end to response-start.
     ttfa_ms: float | None = None
-    ttfa2_ms: float | None = None
+    # Whether the metric was anchored to a genuine playback-onset ('playing')
+    # event. Rows with an unreliable anchor are kept per-row but excluded from
+    # the aggregate so the headline numbers only use trustworthy measurements.
+    ttfa_reliable: bool = False
+    ttfa_anchor_source: str | None = None
+    ttfa_error: str | None = None
     decoded_duration_ms: float | None = None
     first_output_speech_ms: float | None = None
     last_output_speech_ms: float | None = None
@@ -116,9 +123,6 @@ class TurnResult:
     first_input_from_play_ms: float | None = None
     playback_start_source: str | None = None
     prompt_end_wall_method: str | None = None
-    ttfa2_hard_barge_in: bool = False
-    ttfa2_gap_barge_in: bool = False
-    ttfa2_error: str | None = None
     barge_in: bool = False
     barge_in_at_ms: float | None = None
     response_duration_ms: float | None = None
@@ -340,9 +344,20 @@ class TurnManager:
                                     break
 
                         result.ttfa_ms = ttfa
+                        # The native (server-side AudioEngine) path has no
+                        # playback-onset anchor and measures from capture start
+                        # against clip end (duration), not the prompt's speech
+                        # end. That is a different, less accurate definition than
+                        # the browser path's speech-end wall metric, so it is
+                        # marked unreliable and excluded from the aggregate until
+                        # AudioEngine emits a real playback-onset marker. The
+                        # per-row value is still reported for inspection.
+                        result.ttfa_reliable = False
+                        result.ttfa_anchor_source = "native_no_anchor"
+                        result.ttfa_error = "native_path_no_playback_anchor"
                         if result.barge_in:
                             result.status = "barge_in"
-                        log.info(f"turn {turn['turn']}: TTFA={ttfa:.0f}ms barge_in={result.barge_in}")
+                        log.info(f"turn {turn['turn']}: TTFA={ttfa:.0f}ms barge_in={result.barge_in} (native path: unreliable anchor, excluded from aggregate)")
                         self.run.state = TurnState.RECORDING_RESPONSE
                         self._emit("response_detected", {
                             "turn": turn["turn"],
@@ -467,7 +482,9 @@ class TurnManager:
             text=turn["text"],
             duration_ms=turn["duration_ms"],
             ttfa_ms=payload.get("ttfa_ms"),
-            ttfa2_ms=payload.get("ttfa2_ms"),
+            ttfa_reliable=bool(payload.get("ttfa_reliable", False)),
+            ttfa_anchor_source=payload.get("ttfa_anchor_source") or payload.get("playback_start_source"),
+            ttfa_error=payload.get("ttfa_error"),
             decoded_duration_ms=payload.get("decoded_duration_ms"),
             first_output_speech_ms=payload.get("first_output_speech_ms"),
             last_output_speech_ms=payload.get("last_output_speech_ms"),
@@ -478,9 +495,6 @@ class TurnManager:
             first_input_from_play_ms=payload.get("first_input_from_play_ms"),
             playback_start_source=payload.get("playback_start_source"),
             prompt_end_wall_method=payload.get("prompt_end_wall_method"),
-            ttfa2_hard_barge_in=bool(payload.get("ttfa2_hard_barge_in", False)),
-            ttfa2_gap_barge_in=bool(payload.get("ttfa2_gap_barge_in", False)),
-            ttfa2_error=payload.get("ttfa2_error"),
             barge_in=bool(payload.get("barge_in", False)),
             barge_in_at_ms=payload.get("barge_in_at_ms"),
             response_duration_ms=payload.get("response_duration_ms"),
@@ -492,7 +506,9 @@ class TurnManager:
         self._emit("turn_done", {
             "turn": result.turn,
             "ttfa_ms": round(result.ttfa_ms, 1) if result.ttfa_ms is not None else None,
-            "ttfa2_ms": round(result.ttfa2_ms, 1) if result.ttfa2_ms is not None else None,
+            "ttfa_reliable": result.ttfa_reliable,
+            "ttfa_anchor_source": result.ttfa_anchor_source,
+            "ttfa_error": result.ttfa_error,
             "decoded_duration_ms": round(result.decoded_duration_ms, 1) if result.decoded_duration_ms is not None else None,
             "first_output_speech_ms": round(result.first_output_speech_ms, 1) if result.first_output_speech_ms is not None else None,
             "last_output_speech_ms": round(result.last_output_speech_ms, 1) if result.last_output_speech_ms is not None else None,
@@ -503,9 +519,6 @@ class TurnManager:
             "first_input_from_play_ms": round(result.first_input_from_play_ms, 1) if result.first_input_from_play_ms is not None else None,
             "playback_start_source": result.playback_start_source,
             "prompt_end_wall_method": result.prompt_end_wall_method,
-            "ttfa2_hard_barge_in": result.ttfa2_hard_barge_in,
-            "ttfa2_gap_barge_in": result.ttfa2_gap_barge_in,
-            "ttfa2_error": result.ttfa2_error,
             "barge_in": result.barge_in,
             "barge_in_at_ms": round(result.barge_in_at_ms, 1) if result.barge_in_at_ms is not None else None,
             "response_duration_ms": round(result.response_duration_ms, 1) if result.response_duration_ms is not None else None,
@@ -532,23 +545,40 @@ class TurnManager:
         if not results:
             return {}
 
-        # Barge-in rows excluded from TTFA stats entirely (negative ttfa
-        # = pre-end barge; positive ttfa with barge_in=True = hesitation
-        # gap barge). Both are reported only via barge_in_count, not in
-        # avg / median / p95.
-        ttfas = [
-            r.ttfa_ms
-            for r in results
-            if not r.barge_in and r.ttfa_ms is not None and r.ttfa_ms > 0
-        ]
+        # Aggregate eligibility for the single TTFA metric. Excluded:
+        #   - barge-in rows (negative latency or onset inside a hesitation gap);
+        #   - rows with an unreliable anchor (no genuine 'playing' onset), which
+        #     carry the play-scheduling delay and would bias the average;
+        #   - null / non-finite values.
+        # Zero is a legitimate latency (>= 0), unlike the old > 0 filter which
+        # silently dropped exact-zero rows.
+        def _eligible(r):
+            return (
+                r.status == "done"
+                and not r.barge_in
+                and r.ttfa_reliable
+                and r.ttfa_ms is not None
+                and math.isfinite(r.ttfa_ms)
+                and r.ttfa_ms >= 0
+            )
+
+        ttfas = [r.ttfa_ms for r in results if _eligible(r)]
         barge_ins = [r for r in results if r.barge_in]
         no_responses = [r for r in results if r.status == "no_response"]
+        # Responses we measured but could not trust (bad anchor / non-finite),
+        # surfaced so a run with many of these isn't silently flattering.
+        unreliable = [
+            r for r in results
+            if r.status == "done" and not r.barge_in and not _eligible(r)
+        ]
 
         summary = {
             "total_turns": len(results),
             "completed": len([r for r in results if r.status == "done"]),
             "barge_in_count": len(barge_ins),
             "no_response_count": len(no_responses),
+            "ttfa_count": len(ttfas),
+            "ttfa_excluded_unreliable": len(unreliable),
         }
 
         if ttfas:
@@ -578,7 +608,7 @@ class TurnManager:
                 "text": r.text,
                 "duration_ms": r.duration_ms,
                 "ttfa_ms": round(r.ttfa_ms, 1) if r.ttfa_ms is not None else None,
-                "ttfa2_ms": round(r.ttfa2_ms, 1) if r.ttfa2_ms is not None else None,
+                "ttfa_reliable": r.ttfa_reliable,
                 "barge_in": r.barge_in,
                 "status": r.status,
             }
